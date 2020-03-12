@@ -1,42 +1,31 @@
+# The following commands should be run from this directory
+# To build: docker build -t rapid_planner .
+# To run: docker run rapid_planner
+# To access the docker environment: docker run -it -v source:/usr/src/app rapid_planner bash
+# (you will be dropped into a shell in the docker image)
 FROM ubuntu:bionic as prereqs
 
-#install prerequisite libraries
+# Install prerequisite libraries
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   gnupg2 \
-  software-properties-common
+  software-properties-common \
+  cmake \
+  make \
+  g++ \
+  git \
+  nano \
+  vim
 
-WORKDIR /
+# Install eigen
 ADD ./dependencies/rapid-tp-eigen_0-1_amd64.deb /
+RUN dpkg -i /rapid-tp-eigen_0-1_amd64.deb
 
-RUN dpkg -i *.deb
-
-##############################################################################
-## build
-## Adds prerequisites for building and builds the code
-FROM prereqs as build
-
-WORKDIR /
 
 ADD ./source /usr/src/app
-
-RUN apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    cmake \
-    make \
-    g++ \
-    git
-
-WORKDIR /usr/src
-RUN mkdir build
+RUN mkdir /usr/src/build
 WORKDIR /usr/src/build
 RUN cmake ../app
 RUN make -j8
 
-################################################################################
-FROM build as dev
-
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  nano \
-  vim
 WORKDIR /usr/src/app
-CMD ["/bin/bash"]
-################################################################################
+CMD ["/usr/src/build/path_planner_test"]
