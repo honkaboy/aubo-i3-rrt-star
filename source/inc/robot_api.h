@@ -4,7 +4,7 @@
 //target_pose - the target pose to obtain corresponding joint positions as an affine transformation matrix [R [t;1]]
 //initial_joints - joint positions to start solving from
 //success - by reference flag where true indicates an ik solution was found
-//returns a vector of joint positions corresponding to the 
+//returns a vector of joint positions corresponding to the solution
 Eigen::VectorXd inverse_kinematics(const Eigen::Matrix4d target_pose, const Eigen::VectorXd& initial_joints, bool& success);
 
 
@@ -14,5 +14,5 @@ Eigen::VectorXd inverse_kinematics(const Eigen::Matrix4d target_pose, const Eige
 Eigen::MatrixXd forward_kinematics(const Eigen::VectorXd& joint_target);
 
 //Stub collision checking function, where joints is the joint position of the robot to evaluate collisions
-//Returs true if collision is detected, false if not
+//returns true if collision is detected, false if not
 bool in_collision(const Eigen::VectorXd& joints);

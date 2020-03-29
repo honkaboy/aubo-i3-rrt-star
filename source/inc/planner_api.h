@@ -20,22 +20,22 @@ class Pose
 class Path
 {
     public:
-    //Matrix containing joint positions. Each column reprsents each joint, each row is a point along the path
+    //Matrix containing joint positions. Each column represents each joint, each row is a point along the path
     //Matrix shape is thus J columns and S rows, where J is the number of joints in the robot, S is the number of samples
     Eigen::MatrixXd joint_positions;
 };
 
 
-//Pure virtual class representing a path planner with a single "plan" funtion to plan a geometric path
+//Pure virtual class representing a path planner with a single "plan" function to plan a geometric path
 class Planner
 {
     public:
     //Function all planners will override.
     //start - the starting position of the path
     //end - the ending position of the path
-    //resoution - the minimum spacing between incremental path positions (how fine the path is)
-    //plan_ok - by reference flag where true means the plan was successfully planned, flase means a plan coudl not be found
-    //returns - a Path object reprensenting the planned path
+    //resolution - the minimum spacing between incremental path positions (how fine the path is)
+    //plan_ok - by reference flag where true means the plan was successfully planned, false means a plan could not be found
+    //returns - a Path object representing the planned path
     virtual Path plan(const Pose& start, const Pose& end, double resolution, bool& plan_ok);
 };
 
