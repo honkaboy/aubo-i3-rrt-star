@@ -1,7 +1,7 @@
 #include "tree.h"
-#include <assert>
-#include <limits>
+#include <assert.h>
 #include <iostream>
+#include <limits>
 
 using Eigen::Matrix4d;
 using Eigen::MatrixXd;
@@ -9,22 +9,23 @@ using Eigen::Vector3d;
 using Eigen::VectorXd;
 
 Tree::Tree(const Node& root,
-           function<double(const VectorXd&, const VectorXd&)> distance_metric)
-    : distance_metric(distance_metric) {
+           std::function<double(const VectorXd&, const VectorXd&)> distance_metric,
+           const size_t max_nodes)
+    : distance_metric_(distance_metric), kMaxNodes(max_nodes) {
   nodes_.push_back(root);
 }
 
-NodeID Tree::add(const node& new_node) {
-  NodeID node_id = kNone;
+NodeID Tree::Add(const Node& new_node) {
+  NodeID id_added_node = kNone;
   if (nodes_.size() >= kMaxNodes) {
-    node_id = kNone;
+    id_added_node = kNone;
   } else {
     nodes_.push_back(new_node);
-    idx_added_node = nodes_.size() - 1;
-    // TODO remove
-    assert(nodes_[idx_added_node] == new_node);
-    return idx_added_node;
+    id_added_node = nodes_.size() - 1;
+    // TODO remove this sanity check
+    assert(nodes_[id_added_node] == new_node);
   }
+  return id_added_node;
 }
 
 std::vector<NodeID> Tree::near_idxs(const VectorXd& position, double radius) {
@@ -40,7 +41,7 @@ std::vector<NodeID> Tree::near_idxs(const VectorXd& position, double radius) {
 
 NodeID Tree::nearest(const VectorXd& position) {
   NodeID nearest = kNone;
-  double nearest_distance = std::numerical_limits<double>::infinity();
+  double nearest_distance = std::numeric_limits<double>::infinity();
   for (size_t i = 0; i < nodes_.size(); ++i) {
     const double distance = distance_metric_(position, nodes_[i].position);
     if (distance < nearest_distance) {
@@ -67,12 +68,17 @@ void Tree::AddSolution(const NodeID node_id) {
   goal_node_idxs_.push_back(node_id);
 }
 
-void Tree:report() {
+void Tree::Report() {
   if (!goal_node_idxs_.empty()) {
-    std::cout << "reached goal at nodes:" << goal_node_idxs_ << std::endl;
+    std::cout << "reached goal at nodes: {";
+    for (const NodeID node : goal_node_idxs_) {
+      std::cout << node << ", ";
+    }
+    std::cout << std::endl;
+
     // TODO search for best instead of just using first.
     const NodeID goal_node_idx = goal_node_idxs_[0];
-    std::Vector<NodeID> goal_path;
+    std::vector<NodeID> goal_path;
     NodeID parent = goal_node_idx;
     // Backtrack through solution.
     while (parent != kNone) {
@@ -80,9 +86,11 @@ void Tree:report() {
       parent = GetNode(parent).parent;
     }
     // Print starting at root.
+    std::cout << "Goal path: ";
     for (size_t i = goal_path.size() - 1; i > 0; ++i) {
-      std::cout << "Path through " << goal_node_idx << ": " << goal_path << std::endl;
-      std::cout << "Cost: " << GetNode(goal_node_idx).cost << std::endl;
+      const NodeID id = goal_path[i];
+      std::cout << "{" << id << " : " << GetNode(id).cost << "}";
     }
+    std::cout << std::endl;
   }
 }

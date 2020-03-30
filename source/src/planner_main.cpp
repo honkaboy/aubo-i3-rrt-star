@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
   // make response variable
   bool ok;
   // call planner
-  Path result = planner->plan(pose1, pose2, ok);
+  Path result = planner->plan(pose1, pose2, resolution, ok);
   if (ok) {
     std::cout << "Path plan was successful" << std::endl;
   } else {

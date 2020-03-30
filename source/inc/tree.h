@@ -14,9 +14,12 @@ using Eigen::VectorXd;
 class Tree {
  public:
   Tree(const Node& root,
-       std::function<double(const VectorXd&, const VectorXd&)> distance_metric);
+       std::function<double(const VectorXd&, const VectorXd&)> distance_metric,
+       const size_t max_nodes);
 
-  NodeID add(const Node& new_node);
+  static constexpr NodeID kNone = -1;
+
+  NodeID Add(const Node& new_node);
   std::vector<NodeID> near_idxs(const VectorXd& position, double radius);
   NodeID nearest(const VectorXd& position);
   Node GetNode(const NodeID node_id);
@@ -26,10 +29,8 @@ class Tree {
   void Report();
 
  private:
-  static constexpr uint32_t kMaxNodes = 1000;
-  static constexpr NodeID kNone = -1;
-  // TODO make const
   const std::function<double(const VectorXd&, const VectorXd&)> distance_metric_;
+  const size_t kMaxNodes;
   std::vector<Node> nodes_;
   std::vector<NodeID> goal_node_idxs_;
 };

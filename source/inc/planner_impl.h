@@ -3,17 +3,23 @@
 
 #include <random>
 
+#include <Eigen/Dense>
 #include <cmath>
 #include "planner_api.h"
 #include "types.h"
 
-double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
+using Eigen::Matrix4d;
+using Eigen::MatrixXd;
+using Eigen::Vector3d;
+using Eigen::VectorXd;
 
-double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
+constexpr double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
+
+constexpr double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
 
 class PlannerImpl : public Planner {
  public:
-  PlannerImpl(precision) : precision(precision) {
+  PlannerImpl(const double precision) : kPrecision(precision) {
     /// Total Euclidean joint "distance" that can be moved by moving each joint
     /// kNodeDegreeJump.
     new_node_distance_ = std::sqrt(kDims * kNodeDegreeJump);
@@ -25,21 +31,21 @@ class PlannerImpl : public Planner {
   /// \param[out] plan_ok - by reference flag where true means the plan
   /// was successfully planned, false means a plan could not be found
   /// \return Path object representing the planned path
-  Path plan(const Pose& start, const Pose& end, bool& plan_ok) final;
+  Path plan(const Pose& start, const Pose& end, double resolution, bool& plan_ok) final;
 
   bool HasCollision(const VectorXd& X0, const VectorXd& X1);
 
   static double DistanceMetric(const VectorXd& X0, const VectorXd& X1);
 
-  bool PlannerImpl::AtGoal(const VectorXd& position);
+  bool AtGoal(const VectorXd& position);
 
-  VectorXd PlannerImpl::RandomX();
+  VectorXd RandomX();
 
-  VectorXd PlannerImpl::Steer(X_root, X_goal);
+  VectorXd Steer(const VectorXd& X_root, const VectorXd& X_goal);
 
   double CalculateNearRadius();
 
-  void PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf);
+  void RRT_star(VectorXd X0);
 
  private:
   // Looks like limits for all joints are [-175, +175] degrees

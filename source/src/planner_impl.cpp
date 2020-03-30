@@ -23,10 +23,13 @@ VectorXd InitialPosition(const Pose& start) {
 // Default definition of a virtual planner
 Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
                        bool& plan_ok) {
+  /// TODO figure out how to properly incorporate the resolution.
   /// TODO The robot's initial joint positions should be specified, as supplying simply
   /// the pose to begin likely underconstrains the problem (assuming inverse kinematics
   /// pose -> joints is a many-to-one function.
   VectorXd initial_joints = InitialPosition(start);
+  // Bogus isn't actually used.
+  RRT_star(initial_joints);
 
   plan_ok = false;
   return Path();
@@ -38,16 +41,15 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
   }
 
   const double path_count = std::ceil(DistanceMetric(X0, X1) / kPrecision);
+  const VectorXd dX = (X1 - X0) / path_count;
 
-  const VectorXd delta_X = X1 - X0;
-  const Vectorxd dX = delta_x / path_count;
   for (size_t i = 0; i < path_count; ++i) {
-    Xi = X0 + i * dX;
+    const VectorXd Xi = X0 + i * dX;
     if (in_collision(Xi)) {
       return true;
     }
   }
-  if (is_collision(X1)) {
+  if (in_collision(X1)) {
     return true;
   }
 }
@@ -64,16 +66,15 @@ bool PlannerImpl::AtGoal(const VectorXd& position) {
 VectorXd PlannerImpl::RandomX() {
   // This works because the min/max joint angles are symmetric [-max, max] and Random()
   // generates [-1, 1].
-  VectorXd random_point(kDims) = VectorXd::Random(kDims) * kSymmetricMaxJointAngle;
+  VectorXd random_point = VectorXd::Random(kDims) * kSymmetricMaxJointAngle;
   return random_point;
 }
 
-VectorXd PlannerImpl::Steer(X_root, X_goal) {
+VectorXd PlannerImpl::Steer(const VectorXd& X_root, const VectorXd& X_goal) {
   const double distance = DistanceMetric(X_root, X_goal);
   // TODO calculate better
   const double du = new_node_distance_ / distance;
-  VectorXd steered(6);
-  steered = X_root + (X_goal - X_root) * du;
+  const VectorXd steered = X_root + (X_goal - X_root) * du;
   return steered;
 }
 
@@ -82,25 +83,26 @@ double CalculateNearRadius() {
   return 0.1;
 }
 
-void PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
-  Node root(initial_joints, Node::kNone, 0.0);
-  Tree tree(root, DistanceMetric);
+void PlannerImpl::RRT_star(VectorXd X0) {
+  const size_t max_nodes = 1000;
+
+  Node root(X0, Tree::kNone, 0.0);
+  Tree tree(root, DistanceMetric, max_nodes);
 
   // TODO Handle case where root is already at goal.
   // TODO Handle case where root is in collision.
   // TODO Handle case where goal is in collision.
+  // TODO go though and make things references where possible.
 
-  // TODO Pass in kMaxNodes to tree constructor?
-  for (size_t i; i < Tree::kMaxNodes; ++i) {
+  for (size_t i; i < max_nodes; ++i) {
     // TODO add occasional greedy choice directly towards Xf
     VectorXd X_random = RandomX();
     const NodeID nearest_node_idx = tree.nearest(X_random);
-    const VectorXd& X_nearest = tree.GetNode(nearest_node_idx).position;
-    X_new = tree.Steer(X_nearest, X_random);
+    const VectorXd X_nearest = tree.GetNode(nearest_node_idx).position;
+    const VectorXd X_new = Steer(X_nearest, X_random);
 
-    // TODO go though and make things references where possible.
     if (!HasCollision(X_nearest, X_new)) {
-      const double raidus = CalculateNearRadus();
+      const double radius = CalculateNearRadius();
       // Note that tree does not yet contain X_new.
       const std::vector<NodeID> neighbor_idxs = tree.near_idxs(X_new, radius);
       // Connect X_new to best "near" node. Cost to traverse is defined by nearest()'s
@@ -122,8 +124,8 @@ void PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
       }
 
       // Add X_new to tree through best "near" node.
-      const Node n_new = Node(X_new, best_parent_idx, cost_through_best_parent)
-          NodeID n_new_idx = tree.add(n_new);
+      const Node n_new = Node(X_new, best_parent_idx, cost_through_best_parent);
+      NodeID n_new_idx = tree.Add(n_new);
 
       // Connect all neighbors of X_new to X_new if that path cost is less.
       for (const NodeID neighbor_idx : neighbor_idxs) {
