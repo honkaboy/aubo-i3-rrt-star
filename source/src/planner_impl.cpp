@@ -37,7 +37,7 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
 
 bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
   if (DistanceMetric(X0, X1) < kPrecision) {
-    return in_collision(X0);
+    return RobotAPI::in_collision(X0);
   }
 
   const double path_count = std::ceil(DistanceMetric(X0, X1) / kPrecision);
@@ -45,11 +45,11 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
 
   for (size_t i = 0; i < path_count; ++i) {
     const VectorXd Xi = X0 + i * dX;
-    if (in_collision(Xi)) {
+    if (RobotAPI::in_collision(Xi)) {
       return true;
     }
   }
-  if (in_collision(X1)) {
+  if (RobotAPI::in_collision(X1)) {
     return true;
   }
 }
@@ -57,7 +57,9 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
 bool PlannerImpl::AtGoal(const VectorXd& position) {
   VectorXd goal(6);
   goal << 0.15, 0.15, 0.15, 0.15, 0.15, 0.15;
-  return DistanceMetric(position, goal) < kPrecision;
+  // TODO calculate properly
+  // return DistanceMetric(position, goal) < kPrecision;
+  return DistanceMetric(position, goal) < 0.5;
 
   // TODO
   // Either (1) near position + rotation or (2) near target joint angles. 1 seems better.
@@ -72,15 +74,15 @@ VectorXd PlannerImpl::RandomX() {
 
 VectorXd PlannerImpl::Steer(const VectorXd& X_root, const VectorXd& X_goal) {
   const double distance = DistanceMetric(X_root, X_goal);
-  // TODO calculate better
+  // TODO calculate better, by L1 metric
   const double du = new_node_distance_ / distance;
   const VectorXd steered = X_root + (X_goal - X_root) * du;
   return steered;
 }
 
-double CalculateNearRadius() {
+double PlannerImpl::CalculateNearRadius() {
   // TODO Actually calculate.
-  return 0.1;
+  return 0.5;
 }
 
 void PlannerImpl::RRT_star(VectorXd X0) {
@@ -94,7 +96,7 @@ void PlannerImpl::RRT_star(VectorXd X0) {
   // TODO Handle case where goal is in collision.
   // TODO go though and make things references where possible.
 
-  for (size_t i; i < max_nodes; ++i) {
+  for (size_t i = 0; i < max_nodes; ++i) {
     // TODO add occasional greedy choice directly towards Xf
     VectorXd X_random = RandomX();
     const NodeID nearest_node_idx = tree.nearest(X_random);

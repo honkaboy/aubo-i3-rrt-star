@@ -92,5 +92,7 @@ void Tree::Report() {
       std::cout << "{" << id << " : " << GetNode(id).cost << "}";
     }
     std::cout << std::endl;
+  } else {
+    std::cout << "Goal not reached." << std::endl;
   }
 }

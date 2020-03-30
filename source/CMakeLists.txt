@@ -8,7 +8,8 @@ add_library(path_planner
 src/planner_impl.cpp
 src/tree.cpp
 src/node.cpp
-src/aubo_i3_kinematics.cpp)
+src/aubo_i3_kinematics.cpp
+src/robot_api.cpp)
 
 #you may add additional include directories here
 target_include_directories(path_planner PUBLIC inc/ /usr/local/include/eigen3)

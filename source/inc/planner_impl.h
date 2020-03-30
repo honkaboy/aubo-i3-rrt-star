@@ -13,13 +13,18 @@ using Eigen::MatrixXd;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
 
-constexpr double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
-
-constexpr double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
+// double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
+// double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
 
 class PlannerImpl : public Planner {
  public:
-  PlannerImpl(const double precision) : kPrecision(precision) {
+  PlannerImpl(const double precision)
+      : kPrecision(precision),
+        // Looks like limits for all joints are [-175, +175] degrees
+        // (aubo_i3_kinematics.cpp:632).
+        // TODO maybe define these in a prettier way.
+        kSymmetricMaxJointAngle(175.0 / 180 * M_PI),
+        kNodeDegreeJump(1.0 / 180 * M_PI) {
     /// Total Euclidean joint "distance" that can be moved by moving each joint
     /// kNodeDegreeJump.
     new_node_distance_ = std::sqrt(kDims * kNodeDegreeJump);
@@ -50,11 +55,11 @@ class PlannerImpl : public Planner {
  private:
   // Looks like limits for all joints are [-175, +175] degrees
   // (aubo_i3_kinematics.cpp:632).
-  static constexpr double kSymmetricMaxJointAngle = DegreesToRadians(175.0);
-  static constexpr double kNodeDegreeJump = DegreesToRadians(5.0);
   static constexpr size_t kDims = 6;
-  double new_node_distance_;
   const double kPrecision;
+  const double kSymmetricMaxJointAngle;
+  const double kNodeDegreeJump;
+  double new_node_distance_;
 };
 
 #endif

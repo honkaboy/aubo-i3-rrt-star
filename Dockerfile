@@ -20,11 +20,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 ADD ./dependencies/rapid-tp-eigen_0-1_amd64.deb /
 RUN dpkg -i /rapid-tp-eigen_0-1_amd64.deb
 
+# Add gdb and eigen printers for gdb-ing
+RUN apt-get install -y gdb
+ADD .gdbinit /usr/src
 
 ADD ./source /usr/src/app
 RUN mkdir /usr/src/build
 WORKDIR /usr/src/build
-RUN cmake ../app
+# RUN cmake ../app
+RUN cmake ../app -DCMAKE_BUILD_TYPE=Debug
 RUN make -j8
 
 WORKDIR /usr/src/app
