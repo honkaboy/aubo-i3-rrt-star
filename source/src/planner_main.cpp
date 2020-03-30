@@ -3,9 +3,10 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
+  const double resolution = 0.01;
   Planner* planner;
   // Replace with a new version of your planner here
-  planner = new PlannerImpl();
+  planner = new PlannerImpl(resolution);
   // basic test case format
   // make 2 poses
   // You will find and fill valid poses
@@ -13,7 +14,7 @@ int main(int argc, char** argv) {
   // make response variable
   bool ok;
   // call planner
-  Path result = planner->plan(pose1, pose2, 0.01, ok);
+  Path result = planner->plan(pose1, pose2, ok);
   if (ok) {
     std::cout << "Path plan was successful" << std::endl;
   } else {

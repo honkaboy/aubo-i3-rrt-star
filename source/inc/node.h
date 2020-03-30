@@ -18,7 +18,10 @@ class Node:
 
 struct Node {
   Node(const Eigen::VectorXd& position, const NodeID parent, const double cost);
-
+  inline bool operator==(const Node& right) const {
+    return (position == right.position) && (parent == right.parent) &&
+           (cost == right.cost);
+  }
   Eigen::VectorXd position;
   NodeID parent;
   double cost;

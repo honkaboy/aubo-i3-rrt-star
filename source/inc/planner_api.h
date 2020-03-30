@@ -35,8 +35,7 @@ class Planner {
   // path is) plan_ok - by reference flag where true means the plan was successfully
   // planned, false means a plan could not be found returns - a Path object representing
   // the planned path
-  virtual Path plan(const Pose& start, const Pose& end, double resolution,
-                    bool& plan_ok) {
+  virtual Path plan(const Pose& start, const Pose& end, bool& plan_ok) {
     plan_ok = false;
     return Path();
   }

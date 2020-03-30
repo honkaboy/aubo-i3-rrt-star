@@ -16,12 +16,17 @@ class Tree {
   Tree(const Node& root,
        std::function<double(const VectorXd&, const VectorXd&)> distance_metric);
 
+  NodeID add(const node& new_node);
+  std::vector<NodeID> near_idxs(const VectorXd& position, double radius);
+  NodeID nearest(const VectorXd& position);
+
  private:
   static constexpr uint32_t kMaxNodes = 1000;
+  static constexpr NodeID kNone = -1;
   // TODO make const
-  std::function<double(const VectorXd&, const VectorXd&)> distance_metric;
-  std::vector<Node> nodes;
-  std::vector<NodeID> goal_node_idxs;
+  const std::function<double(const VectorXd&, const VectorXd&)> distance_metric_;
+  std::vector<Node> nodes_;
+  std::vector<NodeID> goal_node_idxs_;
 };
 
 #endif

@@ -8,9 +8,8 @@ using Eigen::MatrixXd;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
 
-double PlannerImpl::DistanceMetric(const VectorXd&, const VectorXd&) {
-  // TODO
-  return 1.0;
+double PlannerImpl::DistanceMetric(const VectorXd& position0, const VectorXd& position1) {
+  return (position0 - position1).norm();
 }
 
 VectorXd InitialPosition(const Pose& start) {
@@ -31,4 +30,14 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   Tree tree(root, DistanceMetric);
   plan_ok = false;
   return Path();
+}
+
+bool PlannerImpl::has_collision(const VectorXd& X0, const VectorXd& X1) {
+  if (DistanceMetric(X0, X1) < kPrecision) {
+    return in_collision(X0);
+  }
+
+  const int path_count =
+      std::static_cats<int> std::ceil(DistanceMetric(X0, X1) / kPrecision);
+  // To be continued...
 }
