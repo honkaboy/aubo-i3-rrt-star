@@ -25,11 +25,21 @@ class PlannerImpl : public Planner {
   /// \param[out] plan_ok - by reference flag where true means the plan
   /// was successfully planned, false means a plan could not be found
   /// \return Path object representing the planned path
-  virtual Path plan(const Pose& start, const Pose& end, bool& plan_ok) override;
+  Path plan(const Pose& start, const Pose& end, bool& plan_ok) final;
 
-  bool has_collision(const VectorXd& X0, const VectorXd& X1);
+  bool HasCollision(const VectorXd& X0, const VectorXd& X1);
 
-  static double DistanceMetric(const VectorXd&, const VectorXd&);
+  static double DistanceMetric(const VectorXd& X0, const VectorXd& X1);
+
+  bool PlannerImpl::AtGoal(const VectorXd& position);
+
+  VectorXd PlannerImpl::RandomX();
+
+  VectorXd PlannerImpl::Steer(X_root, X_goal);
+
+  double CalculateNearRadius();
+
+  void PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf);
 
  private:
   // Looks like limits for all joints are [-175, +175] degrees
@@ -180,12 +190,11 @@ g_y)**2 return z
         n_nearest = tree.nodes[nearest_node_idx]
         best_parent_idx = nearest_node_idx
         # Minimum cost to get to X_new through neighbors.
-        cost_through_best_parent = n_nearest.cost + self.X_distance(n_nearest.position, X_new)
-        for neighbor_idx in neighbor_idxs:
-          n_neighbor = tree.nodes[neighbor_idx]
-          new_cost_through_neighbor = n_neighbor.cost + self.X_distance(n_neighbor.position, X_new)
-          if new_cost_through_neighbor < cost_through_best_parent and not self.has_collision(
-                  n_neighbor.position, X_new):
+        cost_through_best_parent = n_nearest.cost + self.X_distance(n_nearest.position,
+X_new) for neighbor_idx in neighbor_idxs: n_neighbor = tree.nodes[neighbor_idx]
+          new_cost_through_neighbor = n_neighbor.cost +
+self.X_distance(n_neighbor.position, X_new) if new_cost_through_neighbor <
+cost_through_best_parent and not self.has_collision( n_neighbor.position, X_new):
             best_parent_idx = neighbor_idx
             cost_through_best_parent = new_cost_through_neighbor
 

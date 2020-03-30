@@ -8,10 +8,10 @@ using Eigen::MatrixXd;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
 
-double PlannerImpl::DistanceMetric(const VectorXd& position0, const VectorXd& position1) {
+double PlannerImpl::DistanceMetric(const VectorXd& X0, const VectorXd& X1) {
   // TODO 1-norm is probably more appropriate.
-  // return (position0 - position1).lpNorm<1>();
-  return (position0 - position1).norm();
+  // return (X0 - X1).lpNorm<1>();
+  return (X0 - X1).norm();
 }
 
 VectorXd InitialPosition(const Pose& start) {
@@ -27,11 +27,12 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   /// the pose to begin likely underconstrains the problem (assuming inverse kinematics
   /// pose -> joints is a many-to-one function.
   VectorXd initial_joints = InitialPosition(start);
+
   plan_ok = false;
   return Path();
 }
 
-bool PlannerImpl::has_collision(const VectorXd& X0, const VectorXd& X1) {
+bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
   if (DistanceMetric(X0, X1) < kPrecision) {
     return in_collision(X0);
   }
@@ -51,20 +52,23 @@ bool PlannerImpl::has_collision(const VectorXd& X0, const VectorXd& X1) {
   }
 }
 
-bool PlannerImpl::at_goal(const VectorXd& position) {
+bool PlannerImpl::AtGoal(const VectorXd& position) {
+  VectorXd goal(6);
+  goal << 0.15, 0.15, 0.15, 0.15, 0.15, 0.15;
+  return DistanceMetric(position, goal) < kPrecision;
+
   // TODO
   // Either (1) near position + rotation or (2) near target joint angles. 1 seems better.
-  return false;
 }
 
-VectorXd PlannerImpl::random_X() {
+VectorXd PlannerImpl::RandomX() {
   // This works because the min/max joint angles are symmetric [-max, max] and Random()
   // generates [-1, 1].
   VectorXd random_point(kDims) = VectorXd::Random(kDims) * kSymmetricMaxJointAngle;
   return random_point;
 }
 
-VectorXd PlannerImpl::steer(X_root, X_goal) {
+VectorXd PlannerImpl::Steer(X_root, X_goal) {
   const double distance = DistanceMetric(X_root, X_goal);
   // TODO calculate better
   const double du = new_node_distance_ / distance;
@@ -78,7 +82,7 @@ double CalculateNearRadius() {
   return 0.1;
 }
 
-Tree PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
+void PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
   Node root(initial_joints, Node::kNone, 0.0);
   Tree tree(root, DistanceMetric);
 
@@ -89,13 +93,13 @@ Tree PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
   // TODO Pass in kMaxNodes to tree constructor?
   for (size_t i; i < Tree::kMaxNodes; ++i) {
     // TODO add occasional greedy choice directly towards Xf
-    VectorXd X_random = random_X();
+    VectorXd X_random = RandomX();
     const NodeID nearest_node_idx = tree.nearest(X_random);
     const VectorXd& X_nearest = tree.GetNode(nearest_node_idx).position;
-    X_new = tree.steer(X_nearest, X_random);
+    X_new = tree.Steer(X_nearest, X_random);
 
     // TODO go though and make things references where possible.
-    if (!has_collision(X_nearest, X_new)) {
+    if (!HasCollision(X_nearest, X_new)) {
       const double raidus = CalculateNearRadus();
       // Note that tree does not yet contain X_new.
       const std::vector<NodeID> neighbor_idxs = tree.near_idxs(X_new, radius);
@@ -111,25 +115,24 @@ Tree PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
         const double new_cost_through_neighbor =
             n_neighbor.cost + DistanceMetric(n_neighbor.position, X_new);
         if (new_cost_through_neighbor < cost_through_best_parent &&
-            !has_collision(n_neighbor.position, X_new)) {
+            !HasCollision(n_neighbor.position, X_new)) {
           best_parent_idx = neighbor_idx;
           cost_through_best_parent = new_cost_through_neighbor;
         }
       }
 
       // Add X_new to tree through best "near" node.
-      const Node n_new =
-          Node(X_new, best_parent_idx, cost_through_best_parent) NodeID n_new_idx =
-              tree.add(n_new)
+      const Node n_new = Node(X_new, best_parent_idx, cost_through_best_parent)
+          NodeID n_new_idx = tree.add(n_new);
 
-              // Connect all neighbors of X_new to X_new if that path cost is less.
-              for (const NodeID neighbor_idx : neighbor_idxs) {
+      // Connect all neighbors of X_new to X_new if that path cost is less.
+      for (const NodeID neighbor_idx : neighbor_idxs) {
         // TODO don't search over best_cost_idx (the best parent for n_new)
         Node n_neighbor = tree.GetNode(neighbor_idx);
         const double neighbor_cost_through_new =
             n_new.cost + DistanceMetric(n_neighbor.position, n_new.position);
         if (neighbor_cost_through_new < n_neighbor.cost and
-            !has_collision(n_new.position, n_neighbor.position)) {
+            !HasCollision(n_new.position, n_neighbor.position)) {
           // Best path for neighbor is now through X_new
           n_neighbor.parent = n_new_idx;
           n_neighbor.cost = neighbor_cost_through_new;
@@ -138,7 +141,7 @@ Tree PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
         }
       }
 
-      if at_goal(n_new.position) {
+      if (AtGoal(n_new.position)) {
         tree.AddSolution(n_new_idx);
       }
     }
@@ -146,4 +149,7 @@ Tree PlannerImpl::RRT_star(VectorXd X0, VectorXd Xf) {
 
   // Print search report.
   tree.Report();
+
+  // return tree or path or something
 }
+

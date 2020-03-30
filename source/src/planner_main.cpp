@@ -3,6 +3,8 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
+  // TODO add resolution back into the path planner. This should be the min rotation
+  // between joint angles (in radians, of course).
   const double resolution = 0.01;
   Planner* planner;
   // Replace with a new version of your planner here
