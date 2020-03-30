@@ -1,5 +1,7 @@
 #include "tree.h"
+#include <assert>
 #include <limits>
+#include <iostream>
 
 using Eigen::Matrix4d;
 using Eigen::MatrixXd;
@@ -47,4 +49,40 @@ NodeID Tree::nearest(const VectorXd& position) {
     }
   }
   return nearest;
+}
+
+Node Tree::GetNode(const NodeID node_id) {
+  assert(node_id < nodes_.size());
+  return nodes_[node_id];
+}
+
+void Tree::SetNode(const NodeID node_id, const Node& node) {
+  assert(node_id < nodes_.size());
+  nodes_[node_id] = node;
+  return;
+}
+
+void Tree::AddSolution(const NodeID node_id) {
+  assert(node_id < nodes_.size());
+  goal_node_idxs_.push_back(node_id);
+}
+
+void Tree:report() {
+  if (!goal_node_idxs_.empty()) {
+    std::cout << "reached goal at nodes:" << goal_node_idxs_ << std::endl;
+    // TODO search for best instead of just using first.
+    const NodeID goal_node_idx = goal_node_idxs_[0];
+    std::Vector<NodeID> goal_path;
+    NodeID parent = goal_node_idx;
+    // Backtrack through solution.
+    while (parent != kNone) {
+      goal_path.push_back(parent);
+      parent = GetNode(parent).parent;
+    }
+    // Print starting at root.
+    for (size_t i = goal_path.size() - 1; i > 0; ++i) {
+      std::cout << "Path through " << goal_node_idx << ": " << goal_path << std::endl;
+      std::cout << "Cost: " << GetNode(goal_node_idx).cost << std::endl;
+    }
+  }
 }

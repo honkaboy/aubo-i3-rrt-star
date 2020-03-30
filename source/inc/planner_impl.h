@@ -1,6 +1,8 @@
 #ifndef __planner_impl_h__
 #define __planner_impl_h__
 
+#include <random>
+
 #include <cmath>
 #include "planner_api.h"
 #include "types.h"
@@ -11,7 +13,11 @@ double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
 
 class PlannerImpl : public Planner {
  public:
-  PlannerImpl(precision) : precision(precision) {}
+  PlannerImpl(precision) : precision(precision) {
+    /// Total Euclidean joint "distance" that can be moved by moving each joint
+    /// kNodeDegreeJump.
+    new_node_distance_ = std::sqrt(kDims * kNodeDegreeJump);
+  }
 
   /// \brief Function all planners will override.
   /// \param[in] start - the starting position of the path
@@ -28,9 +34,10 @@ class PlannerImpl : public Planner {
  private:
   // Looks like limits for all joints are [-175, +175] degrees
   // (aubo_i3_kinematics.cpp:632).
-  static constexpr double kMinJointAngle = DegreesToRadians(-175.0);
-  static constexpr double kMaxJointAngle = DegreesToRadians(175.0);
-  // dq = custom, from RRT* paper?
+  static constexpr double kSymmetricMaxJointAngle = DegreesToRadians(175.0);
+  static constexpr double kNodeDegreeJump = DegreesToRadians(5.0);
+  static constexpr size_t kDims = 6;
+  double new_node_distance_;
   const double kPrecision;
 };
 
@@ -164,21 +171,21 @@ g_y)**2 return z
       X_nearest = tree.nodes[nearest_node_idx].position
       X_new = self.steer(X_nearest, X_random)
 
+
       # Add to node list if it's not in collision.
       if not self.has_collision(X_nearest, X_new):
         # Note: This does not yet contain X_new
         neighbor_idxs = tree.near_idxs(position=X_new, radius=2.0)
-        # Connect X_new to best "near" node.
-        best_parent = nearest_node_idx
-        # Cost to traverse is euclidean distance in X.
+        # Connect X_new to best "near" node. Cost to traverse is euclidean distance in X.
         n_nearest = tree.nodes[nearest_node_idx]
         best_parent_idx = nearest_node_idx
         # Minimum cost to get to X_new through neighbors.
-        cost_through_best_parent = n_nearest.cost + self.X_distance(n_nearest.position,
-X_new) for neighbor_idx in neighbor_idxs: n_neighbor = tree.nodes[neighbor_idx]
-          new_cost_through_neighbor = n_neighbor.cost +
-self.X_distance(n_neighbor.position, X_new) if new_cost_through_neighbor <
-cost_through_best_parent and not self.has_collision( n_neighbor.position, X_new):
+        cost_through_best_parent = n_nearest.cost + self.X_distance(n_nearest.position, X_new)
+        for neighbor_idx in neighbor_idxs:
+          n_neighbor = tree.nodes[neighbor_idx]
+          new_cost_through_neighbor = n_neighbor.cost + self.X_distance(n_neighbor.position, X_new)
+          if new_cost_through_neighbor < cost_through_best_parent and not self.has_collision(
+                  n_neighbor.position, X_new):
             best_parent_idx = neighbor_idx
             cost_through_best_parent = new_cost_through_neighbor
 

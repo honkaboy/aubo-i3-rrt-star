@@ -9,8 +9,9 @@ Eigen::VectorXd inverse_kinematics(const Eigen::Matrix4d target_pose,
                                    const Eigen::VectorXd& initial_joints, bool& success);
 
 // Forward kinematics solution returns the 4d Affine transform matrix [R [t;1]] that
-// corresponds joint positions to a transform joint_target - the vector of joint positions
-// to correspond to a transform returns affine transform matrix
+// corresponds joint positions to a transform
+// joint_target - the vector of joint positions to correspond to a transform returns
+// affine transform matrix
 Eigen::MatrixXd forward_kinematics(const Eigen::VectorXd& joint_target);
 
 // Stub collision checking function, where joints is the joint position of the robot to

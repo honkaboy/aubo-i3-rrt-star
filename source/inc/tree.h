@@ -16,9 +16,14 @@ class Tree {
   Tree(const Node& root,
        std::function<double(const VectorXd&, const VectorXd&)> distance_metric);
 
-  NodeID add(const node& new_node);
+  NodeID add(const Node& new_node);
   std::vector<NodeID> near_idxs(const VectorXd& position, double radius);
   NodeID nearest(const VectorXd& position);
+  Node GetNode(const NodeID node_id);
+  void SetNode(const NodeID node_id, const Node& node);
+  double CalculateNearRadius();
+  void AddSolution(const NodeID node_id);
+  void Report();
 
  private:
   static constexpr uint32_t kMaxNodes = 1000;
