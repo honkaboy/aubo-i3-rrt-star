@@ -6,6 +6,8 @@ project (pathplanner_service)
 #You may add sources to build here
 add_library(path_planner 
 src/planner_impl.cpp
+src/tree.cpp
+src/node.cpp
 src/aubo_i3_kinematics.cpp)
 
 #you may add additional include directories here
@@ -18,4 +20,3 @@ add_executable(path_planner_test src/planner_main.cpp)
 target_include_directories(path_planner_test PUBLIC inc/ /usr/local/include/eigen3)
 add_dependencies(path_planner_test path_planner)
 target_link_libraries(path_planner_test path_planner)
-    
