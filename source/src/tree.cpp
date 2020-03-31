@@ -87,7 +87,7 @@ void Tree::Report() {
     }
     // Print starting at root.
     std::cout << "Goal path: ";
-    for (size_t i = goal_path.size() - 1; i > 0; ++i) {
+    for (size_t i = goal_path.size() - 1; i > 0; --i) {
       const NodeID id = goal_path[i];
       std::cout << "{" << id << " : " << GetNode(id).cost << "}";
     }

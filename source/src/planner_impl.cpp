@@ -9,9 +9,14 @@ using Eigen::Vector3d;
 using Eigen::VectorXd;
 
 double PlannerImpl::DistanceMetric(const VectorXd& X0, const VectorXd& X1) {
-  // TODO 1-norm is probably more appropriate.
-  // return (X0 - X1).lpNorm<1>();
-  return (X0 - X1).norm();
+  // Use the inf-norm for search distance to reflect that each joint is independent.
+  return (X0 - X1).lpNorm<Eigen::Infinity>();
+}
+
+double PlannerImpl::CostMetric(const VectorXd& X0, const VectorXd& X1) {
+  // Use the 2-norm for edge costs between nodes to reflect that we want to minimize total
+  // joint movement.
+  return (X0 - X1).lpNorm<2>();
 }
 
 VectorXd InitialPosition(const Pose& start) {
@@ -28,7 +33,6 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   /// the pose to begin likely underconstrains the problem (assuming inverse kinematics
   /// pose -> joints is a many-to-one function.
   VectorXd initial_joints = InitialPosition(start);
-  // Bogus isn't actually used.
   RRT_star(initial_joints);
 
   plan_ok = false;
@@ -36,11 +40,16 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
 }
 
 bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
-  if (DistanceMetric(X0, X1) < kPrecision) {
+  const double l1_dist = (X0 - X1).lpNorm<1>();
+  const double linf_dist = (X0 - X1).lpNorm<Eigen::Infinity>();
+  if (l1_dist < kResolution) {
+    // Nodes are equivalent.
     return RobotAPI::in_collision(X0);
   }
 
-  const double path_count = std::ceil(DistanceMetric(X0, X1) / kPrecision);
+  // Make sure we check for collisions <= resolution for every joint individually so we
+  // can guarantee the path between nodes is collision-free up to resolution.
+  const double path_count = std::ceil(linf_dist / kResolution);
   const VectorXd dX = (X1 - X0) / path_count;
 
   for (size_t i = 0; i < path_count; ++i) {
@@ -56,13 +65,13 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
 
 bool PlannerImpl::AtGoal(const VectorXd& position) {
   VectorXd goal(6);
-  goal << 0.15, 0.15, 0.15, 0.15, 0.15, 0.15;
-  // TODO calculate properly
-  // return DistanceMetric(position, goal) < kPrecision;
-  return DistanceMetric(position, goal) < 0.5;
-
+  goal << 0.10, 0.10, 0.10, 0.10, 0.10, 0.10;
   // TODO
   // Either (1) near position + rotation or (2) near target joint angles. 1 seems better.
+  // (2) for the time being. If all within kMaxJointDisplacementBetweenNodes, assume we
+  // can jump to goal (would need to check for collisions though). But ideally we just
+  // guide the final nodes to the goal.
+  return DistanceMetric(position, goal) < kMaxJointDisplacementBetweenNodes;
 }
 
 VectorXd PlannerImpl::RandomX() {
@@ -73,20 +82,22 @@ VectorXd PlannerImpl::RandomX() {
 }
 
 VectorXd PlannerImpl::Steer(const VectorXd& X_root, const VectorXd& X_goal) {
-  const double distance = DistanceMetric(X_root, X_goal);
-  // TODO calculate better, by L1 metric
-  const double du = new_node_distance_ / distance;
+  // TODO update comment since linf is no longer explicit
+  // Steer in the direction of X_goal without any single joint exceeding dx =
+  // kMaxJointDisplacementBetweenNodes.
+  const double du = kMaxJointDisplacementBetweenNodes / DistanceMetric(X_root, X_goal);
   const VectorXd steered = X_root + (X_goal - X_root) * du;
   return steered;
 }
 
 double PlannerImpl::CalculateNearRadius() {
-  // TODO Actually calculate.
-  return 0.5;
+  // Since we're using l-inf norm for the distance metric, just search within... oh, I
+  // dunno, 3x max distance between nodes?
+  return 3.0 * kMaxJointDisplacementBetweenNodes;
 }
 
 void PlannerImpl::RRT_star(VectorXd X0) {
-  const size_t max_nodes = 1000;
+  const size_t max_nodes = 10000;
 
   Node root(X0, Tree::kNone, 0.0);
   Tree tree(root, DistanceMetric, max_nodes);
@@ -113,11 +124,11 @@ void PlannerImpl::RRT_star(VectorXd X0) {
       const Node n_nearest = tree.GetNode(nearest_node_idx);
       // Minimum cost to get to X_new through neighbors.
       double cost_through_best_parent =
-          n_nearest.cost + DistanceMetric(n_nearest.position, X_new);
+          n_nearest.cost + CostMetric(n_nearest.position, X_new);
       for (const NodeID neighbor_idx : neighbor_idxs) {
         const Node n_neighbor = tree.GetNode(neighbor_idx);
         const double new_cost_through_neighbor =
-            n_neighbor.cost + DistanceMetric(n_neighbor.position, X_new);
+            n_neighbor.cost + CostMetric(n_neighbor.position, X_new);
         if (new_cost_through_neighbor < cost_through_best_parent &&
             !HasCollision(n_neighbor.position, X_new)) {
           best_parent_idx = neighbor_idx;
@@ -134,7 +145,7 @@ void PlannerImpl::RRT_star(VectorXd X0) {
         // TODO don't search over best_cost_idx (the best parent for n_new)
         Node n_neighbor = tree.GetNode(neighbor_idx);
         const double neighbor_cost_through_new =
-            n_new.cost + DistanceMetric(n_neighbor.position, n_new.position);
+            n_new.cost + CostMetric(n_neighbor.position, n_new.position);
         if (neighbor_cost_through_new < n_neighbor.cost and
             !HasCollision(n_new.position, n_neighbor.position)) {
           // Best path for neighbor is now through X_new
