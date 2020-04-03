@@ -26,37 +26,60 @@ double PlannerImpl::CostMetric(const VectorXd& X0, const VectorXd& X1) {
   return (X0 - X1).lpNorm<2>();
 }
 
-VectorXd InitialPosition(const Pose& start) {
-  VectorXd init(6);
-  init << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-  return init;
+double PlannerImpl::CostToGoMetric(const VectorXd& X, const Pose& goal) {
+  /// TODO define some objective |d_position| + |d_orientation|
+  return 0.0;
+}
+
+VectorXd InitialX(const Pose& start, bool& success) {
+  /// Use the inverse kinematics starting from the joint origin to obtain the initial
+  /// joint position.
+  VectorXd origin(kDims);
+  origin << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+  VectorXd initial_joints = RobotAPI::inverse_kinematics(start, origin, success);
+  return initial_joints
 }
 
 // Default definition of a virtual planner
 Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
                        bool& plan_ok) {
-  /// TODO figure out how to properly incorporate the resolution.
-  /// TODO The robot's initial joint positions should be specified, as supplying simply
-  /// the pose to begin likely underconstrains the problem (assuming inverse kinematics
-  /// pose -> joints is a many-to-one function.
-  VectorXd initial_joints = InitialPosition(start);
-  RRT_star(initial_joints);
+  Path path;
 
-  plan_ok = false;
-  return Path();
+  /// NOTE: This function's API is a little strange, because we should expect to already
+  /// know the robot's initial configuration (initial joint displacements) if we're
+  /// planning from a starting pose. Since we're missing this information, I've defined
+  /// this function here that generates the initial joint angles which are otherwise
+  /// likely underconstrained (assuming inverse kinematics pose -> joints is a many-to-one
+  /// function.
+  VectorXd initial_joints = InitialX(start, plan_ok);
+  if (!plan_ok) {
+    cout << "Failed to obtain initial joint angles." << std::endl;
+  } else {
+    // NOTE: We don't just calculate a target joint position because there is likely a set
+    // of joint positions that reach end, and we don't want to overconstrain the planner.
+    // TODO Pass tree by reference instead
+    Tree tree = RRT_star(initial_joints, end, resolution);
+
+    // Print search report.
+    tree.Report();
+
+    plan_ok = false;
+  }
+  return path;
 }
 
-bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
+bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1,
+                               const double resolution) {
   const double l1_dist = (X0 - X1).lpNorm<1>();
   const double linf_dist = (X0 - X1).lpNorm<Eigen::Infinity>();
-  if (l1_dist < kResolution) {
+  if (l1_dist < resolution) {
     // Nodes are equivalent.
     return RobotAPI::in_collision(X0);
   }
 
   // Make sure we check for collisions <= resolution for every joint individually so we
   // can guarantee the path between nodes is collision-free up to resolution.
-  const double path_count = std::ceil(linf_dist / kResolution);
+  const double path_count = std::ceil(linf_dist / resolution);
   const VectorXd dX = (X1 - X0) / path_count;
 
   for (size_t i = 0; i < path_count; ++i) {
@@ -70,7 +93,8 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
   }
 }
 
-bool PlannerImpl::AtGoal(const VectorXd& position) {
+// TODO redefine by cost to goal metric?
+bool PlannerImpl::AtGoal(const VectorXd& position, const double resolution) {
   VectorXd goal(kDims);
   goal << 0.50, 0.50, 0.50, 0.50, 0.50, 0.50;
   // TODO
@@ -78,16 +102,24 @@ bool PlannerImpl::AtGoal(const VectorXd& position) {
   // (2) for the time being. If all within kMaxJointDisplacementBetweenNodes, assume we
   // can jump to goal (would need to check for collisions though). But ideally we just
   // guide the final nodes to the goal.
-  return DistanceMetric(position, goal) < kResolution;
+  return DistanceMetric(position, goal) < resolution;
 }
 
-VectorXd PlannerImpl::TargetX(const double greediness, const VectorXd goal) {
+VectorXd PlannerImpl::TargetX(const double greediness, const Pose& goal,
+                              const VectorXd& greedy_initial_X) {
   VectorXd target(kDims);
   if (uniform_distribution_(engine_) < greediness) {
-    target = goal;
+    // In the greedy case, go directly to goal. Inverse kinematics specifies the goal
+    // state from a given greedy_initial_X.
+    const Matrix4d T_goal = PoseToAffineTransform(goal);
+    bool success = false;
+    target = RobotAPI::inverse_kinematics(T_goal, greedy_initial_X, success);
+    // TODO something smarter than assert here.
+    assert(success);
   } else {
-    // This works because the min/max joint angles are symmetric [-max, max] and Random()
-    // generates [-1, 1].
+    // Otherwise, randomly select a target in the state space.
+    // Note: This works because the min/max joint angles are symmetric [-max, max] and
+    // Random() generates x \in [-1, 1].
     target = VectorXd::Random(kDims) * kSymmetricMaxJointAngle;
   }
   return target;
@@ -117,24 +149,24 @@ double PlannerImpl::CalculateNearRadius() {
   return 3.0 * kMaxJointDisplacementBetweenNodes;
 }
 
-void PlannerImpl::RRT_star(VectorXd X0) {
-  const size_t max_nodes = 1000;
+void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolution) {
+  const size_t kMaxIterations = 1000;
 
-  VectorXd goal(kDims);
-  goal << 0.50, 0.50, 0.50, 0.50, 0.50, 0.50;
+  const auto cost_to_go = [](const VectorXd& X) { return CostToGoMetric(X, goal); };
 
-  Node root(X0, Tree::kNone, 0.0, CostMetric(X0, goal));
-  Tree tree(root, DistanceMetric, max_nodes);
+  Node root(X0, Tree::kNone, 0.0, cost_to_go(X0));
+  Tree tree(root, DistanceMetric, kMaxIterations);
 
   // TODO Handle case where root is already at goal.
   // TODO Handle case where root is in collision.
   // TODO Handle case where goal is in collision.
 
-  // Iterate max_nodes -1 times since we already have 1 node in the tree.
-  for (size_t i = 0; i < max_nodes - 1; ++i) {
+  // Iterate kMaxIterations -1 times since we already have 1 node in the tree.
+  // TODO Maybe fill up the whole tree? This wouldn't do it because of collisions.
+  for (size_t i = 0; i < kMaxIterations - 1; ++i) {
     // Occasional greedy choice directly towards goal.
     const double greediness = 0.1;
-    VectorXd X_target = TargetX(greediness, goal);
+    VectorXd X_target = TargetX(greediness, goal, tree.GetBestNodePosition());
 
     // From the "randomly" generated target state, generate a new candidate state.
     // TODO don't build off of goal nodes?
@@ -142,7 +174,7 @@ void PlannerImpl::RRT_star(VectorXd X0) {
     const VectorXd X_nearest = tree.GetNode(nearest_node_idx).position;
     const VectorXd X_new = Steer(X_nearest, X_target);
 
-    if (!HasCollision(X_nearest, X_new)) {
+    if (!HasCollision(X_nearest, X_new, resolution)) {
       const double radius = CalculateNearRadius();
       // Note that tree does not yet contain X_new.
       const std::vector<NodeID> neighbor_idxs = tree.near_idxs(X_new, radius);
@@ -158,7 +190,7 @@ void PlannerImpl::RRT_star(VectorXd X0) {
         const double new_cost_through_neighbor =
             n_neighbor.cost + CostMetric(n_neighbor.position, X_new);
         if (new_cost_through_neighbor < cost_through_best_parent &&
-            !HasCollision(n_neighbor.position, X_new)) {
+            !HasCollision(n_neighbor.position, X_new, resolution)) {
           best_parent_idx = neighbor_idx;
           cost_through_best_parent = new_cost_through_neighbor;
         }
@@ -166,8 +198,8 @@ void PlannerImpl::RRT_star(VectorXd X0) {
 
       // Add X_new to tree through best "near" node.
       const Node n_new =
-          Node(X_new, best_parent_idx, cost_through_best_parent, CostMetric(X_new, goal));
-      NodeID n_new_idx = tree.Add(n_new, AtGoal(n_new.position));
+          Node(X_new, best_parent_idx, cost_through_best_parent, cost_to_go(X_new, goal));
+      NodeID n_new_idx = tree.Add(n_new, AtGoal(n_new.position, resolution));
       assert(n_new_idx != Tree::kNone);
 
       // Connect all neighbors of X_new to X_new if that path cost is less.
@@ -177,7 +209,7 @@ void PlannerImpl::RRT_star(VectorXd X0) {
         const double neighbor_cost_through_new =
             n_new.cost + CostMetric(n_neighbor.position, n_new.position);
         if (neighbor_cost_through_new < n_neighbor.cost and
-            !HasCollision(n_new.position, n_neighbor.position)) {
+            !HasCollision(n_new.position, n_neighbor.position, resolution)) {
           // Best path for neighbor is now through X_new
           n_neighbor.parent = n_new_idx;
           n_neighbor.cost = neighbor_cost_through_new;
@@ -188,9 +220,7 @@ void PlannerImpl::RRT_star(VectorXd X0) {
     }
   }
 
-  // Print search report.
-  tree.Report();
-
   // return tree or path or something
+  return tree;
 }
 

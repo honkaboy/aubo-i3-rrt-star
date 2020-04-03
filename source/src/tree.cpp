@@ -13,6 +13,8 @@ Tree::Tree(const Node& root,
            const size_t max_nodes)
     : distance_metric_(distance_metric), kMaxNodes(max_nodes) {
   nodes_.push_back(root);
+  // Make root the current best node.
+  best_node_and_cost_to_go_ = {0, root.cost_to_go};
 }
 
 NodeID Tree::Add(const Node& new_node, bool is_goal) {
@@ -24,9 +26,14 @@ NodeID Tree::Add(const Node& new_node, bool is_goal) {
     // TODO remove this sanity check
     assert(nodes_[id_added_node] == new_node);
 
-    // Add to goal list.
+    // Conditionally add to goal set.
     if (is_goal) {
       goal_node_idxs_.push_back(id_added_node);
+    }
+
+    // Update the best node if this one is better.
+    if (new_node.cost_to_go < best_node_and_cost_to_go_.second) {
+      best_node_and_cost_to_go_ = {id_added_node, new_node.cost_to_go};
     }
   }
   return id_added_node;
@@ -63,6 +70,10 @@ Node Tree::GetNode(const NodeID node_id) {
   return nodes_[node_id];
 }
 
+VectorXd GetBestNodePosition() {
+  return nodes_[best_node_and_cost_to_go_.first].position;
+}
+
 void Tree::SetNode(const NodeID node_id, const Node& node) {
   assert(node_id < nodes_.size());
   nodes_[node_id] = node;
@@ -72,13 +83,12 @@ void Tree::SetNode(const NodeID node_id, const Node& node) {
 void Tree::Report() {
   if (!goal_node_idxs_.empty()) {
     // Find the goal node with the smallest cost (from origin).
-    const auto best_node_it = std::min_element(
-        nodes_.begin(), nodes_.end(),
-        [this](const Node& a, const Node& b) { return a.cost < b.cost; });
-    const NodeID best_node_idx = std::distance(nodes_.begin(), best_node_it);
-    const Node best_node = *best_node_it;
-    // TODO remove
-    assert(nodes_[best_node_idx] == best_node);
+    const NodeID best_node_idx =
+        *std::min_element(goal_node_idxs_.begin(), goal_node_idxs_.end(),
+                          [this](const NodeID a, const NodeID b) {
+                            return nodes_[a].cost < nodes_[b].cost;
+                          });
+    const Node best_node = nodes_[best_node_idx];
 
     // Print all goal nodes.
     std::cout << "reached goal at nodes: {";
