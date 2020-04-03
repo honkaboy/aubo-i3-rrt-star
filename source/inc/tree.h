@@ -19,13 +19,12 @@ class Tree {
 
   static constexpr NodeID kNone = -1;
 
-  NodeID Add(const Node& new_node);
+  NodeID Add(const Node& new_node, bool is_goal = false);
   std::vector<NodeID> near_idxs(const VectorXd& position, double radius);
   NodeID nearest(const VectorXd& position);
   Node GetNode(const NodeID node_id);
   void SetNode(const NodeID node_id, const Node& node);
   double CalculateNearRadius();
-  void AddSolution(const NodeID node_id);
   void Report();
 
  private:
@@ -36,45 +35,3 @@ class Tree {
 };
 
 #endif
-
-/*
-class Tree:
-  def __init__(self, root, distance_metric):
-    self.max_nodes = 10000
-    self.nodes = [root]
-    self.goal_node_idxs = []
-    self.distance_metric = distance_metric
-
-  def add(self, node):
-    if len(self.nodes) >= self.max_nodes:
-      return None
-
-    self.nodes.append(node)
-    idx_added_node = len(self.nodes) - 1
-
-    return idx_added_node
-
-  def near_idxs(self, position, radius):
-    near_nodes_idx = []
-    near_nodes_ds = []
-    for i, node in enumerate(self.nodes):
-      this_ds = self.distance_metric(node.position, position)
-      if this_ds < radius:
-        near_nodes_idx.append(i)
-        near_nodes_ds.append(this_ds)
-
-    # Return the near set.
-    return near_nodes_idx
-
-  def nearest(self, position):
-    nearest_idx = None
-    nearest_dist = 10e9
-    for i, node in enumerate(self.nodes):
-      this_dist = self.distance_metric(node.position, position)
-      if this_dist < nearest_dist:
-        nearest_idx = i
-        nearest_dist = this_dist
-
-    # Return the near set.
-    return nearest_idx
-*/

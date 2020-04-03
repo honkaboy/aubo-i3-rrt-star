@@ -15,15 +15,19 @@ Tree::Tree(const Node& root,
   nodes_.push_back(root);
 }
 
-NodeID Tree::Add(const Node& new_node) {
+NodeID Tree::Add(const Node& new_node, bool is_goal) {
   NodeID id_added_node = kNone;
-  if (nodes_.size() >= kMaxNodes) {
-    id_added_node = kNone;
-  } else {
+  if (nodes_.size() < kMaxNodes) {
+    // Add the node to the tree.
     nodes_.push_back(new_node);
     id_added_node = nodes_.size() - 1;
     // TODO remove this sanity check
     assert(nodes_[id_added_node] == new_node);
+
+    // Add to goal list.
+    if (is_goal) {
+      goal_node_idxs_.push_back(id_added_node);
+    }
   }
   return id_added_node;
 }
@@ -53,7 +57,9 @@ NodeID Tree::nearest(const VectorXd& position) {
 }
 
 Node Tree::GetNode(const NodeID node_id) {
-  assert(node_id < nodes_.size());
+  if (node_id >= nodes_.size()) {
+    assert(false);
+  }
   return nodes_[node_id];
 }
 
@@ -63,23 +69,27 @@ void Tree::SetNode(const NodeID node_id, const Node& node) {
   return;
 }
 
-void Tree::AddSolution(const NodeID node_id) {
-  assert(node_id < nodes_.size());
-  goal_node_idxs_.push_back(node_id);
-}
-
 void Tree::Report() {
   if (!goal_node_idxs_.empty()) {
+    // Find the goal node with the smallest cost (from origin).
+    const auto best_node_it = std::min_element(
+        nodes_.begin(), nodes_.end(),
+        [this](const Node& a, const Node& b) { return a.cost < b.cost; });
+    const NodeID best_node_idx = std::distance(nodes_.begin(), best_node_it);
+    const Node best_node = *best_node_it;
+    // TODO remove
+    assert(nodes_[best_node_idx] == best_node);
+
+    // Print all goal nodes.
     std::cout << "reached goal at nodes: {";
     for (const NodeID node : goal_node_idxs_) {
       std::cout << node << ", ";
     }
     std::cout << std::endl;
 
-    // TODO search for best instead of just using first.
-    const NodeID goal_node_idx = goal_node_idxs_[0];
+    // Look at the best node
     std::vector<NodeID> goal_path;
-    NodeID parent = goal_node_idx;
+    NodeID parent = best_node_idx;
     // Backtrack through solution.
     while (parent != kNone) {
       goal_path.push_back(parent);
@@ -87,12 +97,23 @@ void Tree::Report() {
     }
     // Print starting at root.
     std::cout << "Goal path: ";
-    for (size_t i = goal_path.size() - 1; i > 0; --i) {
-      const NodeID id = goal_path[i];
-      std::cout << "{" << id << " : " << GetNode(id).cost << "}";
+    for (auto it = goal_path.rbegin(); it != goal_path.rend(); ++it) {
+      std::cout << "{" << *it << " : " << GetNode(*it).cost << "}, ";
     }
     std::cout << std::endl;
   } else {
-    std::cout << "Goal not reached." << std::endl;
+    // Find the node that has the smallest cost to go to reach the goal.
+    const auto best_node_it = std::min_element(
+        nodes_.begin(), nodes_.end(),
+        [this](const Node& a, const Node& b) { return a.cost_to_go < b.cost_to_go; });
+    const NodeID best_node_idx = std::distance(nodes_.begin(), best_node_it);
+    const Node best_node = *best_node_it;
+    // TODO remove
+    assert(nodes_[best_node_idx] == best_node);
+
+    std::cout << "Goal not reached. Closest node is ";
+    std::cout << "{" << best_node_idx << " : cost - " << best_node.cost
+              << " : cost_to_go - " << best_node.cost_to_go << "}, " << std::endl;
   }
+  return;
 }

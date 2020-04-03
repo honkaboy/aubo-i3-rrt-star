@@ -4,27 +4,17 @@
 #include <Eigen/Dense>
 #include "types.h"
 
-/*
-class Node:
-  def __init__(self, position, parent, cost):
-    self.position = position
-    self.parent = parent
-    # Cost to get to this node from root.
-    self.cost = cost
-
-  def __str__(self):
-    return f"parent: {self.parent}; cost: {self.cost}"
-*/
-
 struct Node {
-  Node(const Eigen::VectorXd& position, const NodeID parent, const double cost);
+  Node(const Eigen::VectorXd& position, const NodeID parent, const double cost,
+       const double cost_to_go);
   inline bool operator==(const Node& right) const {
     return (position == right.position) && (parent == right.parent) &&
-           (cost == right.cost);
+           (cost == right.cost) && (cost_to_go == right.cost_to_go);
   }
   Eigen::VectorXd position;
   NodeID parent;
   double cost;
+  double cost_to_go;
 };
 
 #endif

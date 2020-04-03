@@ -8,6 +8,13 @@ using Eigen::MatrixXd;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
 
+// TODO cleanup:
+// - go though and make things references, const refs where possible.
+// - make functions static where possible
+// - Dox for class
+// - Replace asserts.
+// - Loops: iterators
+
 double PlannerImpl::DistanceMetric(const VectorXd& X0, const VectorXd& X1) {
   // Use the inf-norm for search distance to reflect that each joint is independent.
   return (X0 - X1).lpNorm<Eigen::Infinity>();
@@ -64,29 +71,43 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1) {
 }
 
 bool PlannerImpl::AtGoal(const VectorXd& position) {
-  VectorXd goal(6);
-  goal << 0.10, 0.10, 0.10, 0.10, 0.10, 0.10;
+  VectorXd goal(kDims);
+  goal << 0.50, 0.50, 0.50, 0.50, 0.50, 0.50;
   // TODO
   // Either (1) near position + rotation or (2) near target joint angles. 1 seems better.
   // (2) for the time being. If all within kMaxJointDisplacementBetweenNodes, assume we
   // can jump to goal (would need to check for collisions though). But ideally we just
   // guide the final nodes to the goal.
-  return DistanceMetric(position, goal) < kMaxJointDisplacementBetweenNodes;
+  return DistanceMetric(position, goal) < kResolution;
 }
 
-VectorXd PlannerImpl::RandomX() {
-  // This works because the min/max joint angles are symmetric [-max, max] and Random()
-  // generates [-1, 1].
-  VectorXd random_point = VectorXd::Random(kDims) * kSymmetricMaxJointAngle;
-  return random_point;
+VectorXd PlannerImpl::TargetX(const double greediness, const VectorXd goal) {
+  VectorXd target(kDims);
+  if (uniform_distribution_(engine_) < greediness) {
+    target = goal;
+  } else {
+    // This works because the min/max joint angles are symmetric [-max, max] and Random()
+    // generates [-1, 1].
+    target = VectorXd::Random(kDims) * kSymmetricMaxJointAngle;
+  }
+  return target;
 }
 
 VectorXd PlannerImpl::Steer(const VectorXd& X_root, const VectorXd& X_goal) {
   // TODO update comment since linf is no longer explicit
   // Steer in the direction of X_goal without any single joint exceeding dx =
-  // kMaxJointDisplacementBetweenNodes.
-  const double du = kMaxJointDisplacementBetweenNodes / DistanceMetric(X_root, X_goal);
-  const VectorXd steered = X_root + (X_goal - X_root) * du;
+  // kMaxJointDisplacementBetweenNodes and without overshooting the goal.
+  VectorXd steered(kDims);
+  const double distance = DistanceMetric(X_root, X_goal);
+  if (distance < kMaxJointDisplacementBetweenNodes) {
+    steered = X_goal;
+  } else {
+    // Since DistanceMetric should be a norm, and kMaxJointDisplacementBetweenNodes must
+    // logically be positive, distance should always > 0 at this point.
+    assert(distance > 0.0);
+    const double du = kMaxJointDisplacementBetweenNodes / distance;
+    steered = X_root + (X_goal - X_root) * du;
+  }
   return steered;
 }
 
@@ -97,22 +118,29 @@ double PlannerImpl::CalculateNearRadius() {
 }
 
 void PlannerImpl::RRT_star(VectorXd X0) {
-  const size_t max_nodes = 10000;
+  const size_t max_nodes = 1000;
 
-  Node root(X0, Tree::kNone, 0.0);
+  VectorXd goal(kDims);
+  goal << 0.50, 0.50, 0.50, 0.50, 0.50, 0.50;
+
+  Node root(X0, Tree::kNone, 0.0, CostMetric(X0, goal));
   Tree tree(root, DistanceMetric, max_nodes);
 
   // TODO Handle case where root is already at goal.
   // TODO Handle case where root is in collision.
   // TODO Handle case where goal is in collision.
-  // TODO go though and make things references where possible.
 
-  for (size_t i = 0; i < max_nodes; ++i) {
-    // TODO add occasional greedy choice directly towards Xf
-    VectorXd X_random = RandomX();
-    const NodeID nearest_node_idx = tree.nearest(X_random);
+  // Iterate max_nodes -1 times since we already have 1 node in the tree.
+  for (size_t i = 0; i < max_nodes - 1; ++i) {
+    // Occasional greedy choice directly towards goal.
+    const double greediness = 0.1;
+    VectorXd X_target = TargetX(greediness, goal);
+
+    // From the "randomly" generated target state, generate a new candidate state.
+    // TODO don't build off of goal nodes?
+    const NodeID nearest_node_idx = tree.nearest(X_target);
     const VectorXd X_nearest = tree.GetNode(nearest_node_idx).position;
-    const VectorXd X_new = Steer(X_nearest, X_random);
+    const VectorXd X_new = Steer(X_nearest, X_target);
 
     if (!HasCollision(X_nearest, X_new)) {
       const double radius = CalculateNearRadius();
@@ -137,8 +165,10 @@ void PlannerImpl::RRT_star(VectorXd X0) {
       }
 
       // Add X_new to tree through best "near" node.
-      const Node n_new = Node(X_new, best_parent_idx, cost_through_best_parent);
-      NodeID n_new_idx = tree.Add(n_new);
+      const Node n_new =
+          Node(X_new, best_parent_idx, cost_through_best_parent, CostMetric(X_new, goal));
+      NodeID n_new_idx = tree.Add(n_new, AtGoal(n_new.position));
+      assert(n_new_idx != Tree::kNone);
 
       // Connect all neighbors of X_new to X_new if that path cost is less.
       for (const NodeID neighbor_idx : neighbor_idxs) {
@@ -154,10 +184,6 @@ void PlannerImpl::RRT_star(VectorXd X0) {
           // Update the neighbor node in the tree.
           tree.SetNode(neighbor_idx, n_neighbor);
         }
-      }
-
-      if (AtGoal(n_new.position)) {
-        tree.AddSolution(n_new_idx);
       }
     }
   }
