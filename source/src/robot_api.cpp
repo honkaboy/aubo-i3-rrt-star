@@ -13,8 +13,8 @@ Pose::AffineTransform_t RobotAPI::forward_kinematics(
     const Eigen::VectorXd& joint_target) {
   Eigen::MatrixXd result(4, 4);
   aubo_forward(result, joint_target);
-  Eigen::Transform<double, 3, Eigen::Affine> result_T;
-  result_T.matrix = result;
+  Pose::AffineTransform_t result_T;
+  result_T.matrix() = result;
   return result_T;
 }
 

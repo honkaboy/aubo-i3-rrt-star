@@ -24,7 +24,7 @@ class Tree {
   std::vector<NodeID> near_idxs(const VectorXd& position, double radius);
   NodeID nearest(const VectorXd& position);
   Node GetNode(const NodeID node_id);
-  Node GetBestNode();
+  VectorXd GetBestNodePosition();
   void SetNode(const NodeID node_id, const Node& node);
   double CalculateNearRadius();
   void Report();
@@ -34,8 +34,8 @@ class Tree {
   const size_t kMaxNodes;
   std::vector<Node> nodes_;
   std::vector<NodeID> goal_node_idxs_;
-  std::pair<Node, double> best_node_and_cost_to_go_ = {
-      kNone, std::numeric_limits<double>::infinity()};
+  std::pair<NodeID, double> best_node_and_cost_to_go_ =
+      std::make_pair(kNone, std::numeric_limits<double>::infinity());
 };
 
 #endif

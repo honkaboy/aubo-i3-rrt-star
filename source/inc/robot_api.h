@@ -15,7 +15,7 @@ class RobotAPI {
   /// initial_joints - joint positions to start solving from
   /// success - by reference flag where true indicates an ik solution was found returns a
   /// vector of joint positions corresponding to the solution
-  static Eigen::VectorXd inverse_kinematics(const Pose::AffineTransform_t target_pose,
+  static Eigen::VectorXd inverse_kinematics(const Pose::AffineTransform_t& target_pose,
                                             const Eigen::VectorXd& initial_joints,
                                             bool& success);
 

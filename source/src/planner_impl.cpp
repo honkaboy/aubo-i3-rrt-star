@@ -1,7 +1,9 @@
 #include "planner_impl.h"
 
+#include <Eigen/MatrixLogarithm.h>
 #include <Eigen/LU>
 #include <cmath>
+#include "planner_api.h"
 #include "robot_api.h"
 #include "tree.h"
 
@@ -33,23 +35,28 @@ double PlannerImpl::DistanceToGoalMetric(const VectorXd& X, const Pose& goal) {
   // Got this metric from https://www.cs.cmu.edu/~cga/dynopt/readings/Rmetric.pdf eqn. 4,
   // which in turn got it from https://doi.org/10.1115/1.2826116
   // metric = sqrt(a * norm(log(R2 / R1))**2 + b * norm(t2 - t1)**2)
-  const Pose::AffineTransformation_t T_X = forward_kinematics(X);
-  const Pose::AffineTransformation_t T_goal = goal.AffineTransform();
+  const Pose::AffineTransform_t T_X = RobotAPI::forward_kinematics(X);
+  const Pose::AffineTransform_t T_goal = goal.AffineTransform();
   const double a = 1.0;
   const double b = 1.0;
+
+  Matrix3d tmp;
+  // TODO There's no doubt something more efficient in eigen than calling inverse() here.
+  auto tmp2 = (T_X.rotation().inverse() * T_goal.rotation()).log();
+  tmp2.evalTo(tmp);
   const double metric =
-      std::sqrt(a * (T_X.rotation.Inverse() * T_goal.rotation()).log().squaredNorm() +
+      std::sqrt(a * tmp.squaredNorm() +
                 b * (T_X.translation() - T_goal.translation()).squaredNorm());
 }
 
-VectorXd InitialX(const Pose& start, bool& success) {
+VectorXd PlannerImpl::InitialX(const Pose& start, bool& success) {
   /// Use the inverse kinematics starting from the joint origin to obtain the initial
   /// joint position.
   VectorXd origin(kDims);
   origin << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
   VectorXd initial_joints =
-      RobotAPI::inverse_kinematics(start.AffineTransform().matrix(), origin, success);
-  return initial_joints
+      RobotAPI::inverse_kinematics(start.AffineTransform(), origin, success);
+  return initial_joints;
 }
 
 // Default definition of a virtual planner
@@ -65,7 +72,7 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   /// function.
   VectorXd initial_joints = InitialX(start, plan_ok);
   if (!plan_ok) {
-    cout << "Failed to obtain initial joint angles." << std::endl;
+    std::cout << "Error: Failed to obtain initial joint angles." << std::endl;
   } else {
     // NOTE: We don't just calculate a target joint position because there is likely a set
     // of joint positions that reach end, and we don't want to overconstrain the planner.
@@ -108,7 +115,8 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1,
 bool PlannerImpl::AtPose(const VectorXd& position, const Pose& pose,
                          const double resolution) {
   bool success = false;
-  goal_X = RobotAPI::inverse_kinematics(pose.AffineTransform(), position, success);
+  const VectorXd goal_X =
+      RobotAPI::inverse_kinematics(pose.AffineTransform(), position, success);
   if (success) {
     // DistanceMetric < resolution ensures that all joints can move to goal within
     // resolution independently.
@@ -163,7 +171,7 @@ double PlannerImpl::CalculateNearRadius() {
   return 3.0 * kMaxJointDisplacementBetweenNodes;
 }
 
-void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolution) {
+Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolution) {
   // TODO Define this parameter in a central location.
   const size_t kMaxIterations = 1000;
 

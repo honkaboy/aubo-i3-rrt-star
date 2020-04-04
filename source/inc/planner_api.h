@@ -10,8 +10,8 @@ class Pose {
  public:
   typedef Eigen::Transform<double, 3, Eigen::Affine> AffineTransform_t;
   // Express the pose as an affine transform.
-  static AffineTransform_t AffineTransform() {
-    return Eigen::Translation3d(goal.translation) * goal.orientation_quaternion;
+  AffineTransform_t AffineTransform() const {
+    return Eigen::Translation3d(translation) * orientation_quaternion;
   }
   // The orientation as a quaternion
   Eigen::Quaterniond orientation_quaternion;

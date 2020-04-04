@@ -7,6 +7,7 @@
 #include <cmath>
 #include "planner_api.h"
 #include "types.h"
+#include "tree.h"
 
 using Eigen::Matrix4d;
 using Eigen::MatrixXd;
@@ -36,23 +37,26 @@ class PlannerImpl : public Planner {
   /// \return Path object representing the planned path
   Path plan(const Pose& start, const Pose& end, double resolution, bool& plan_ok) final;
 
+  VectorXd InitialX(const Pose& start, bool& success);
+
   bool HasCollision(const VectorXd& X0, const VectorXd& X1, const double resolution);
 
   static double DistanceMetric(const VectorXd& X0, const VectorXd& X1);
 
-  static double CostMetric(const VectorXd& X0, const VectorXd& X1);
+  static double EdgeCostMetric(const VectorXd& X0, const VectorXd& X1);
 
-  double PlannerImpl::CostToGoMetric(const VectorXd& X, const Pose& goal);
+  static double DistanceToGoalMetric(const VectorXd& X, const Pose& goal);
 
   bool AtPose(const VectorXd& position, const Pose& pose, const double resolution);
 
-  VectorXd TargetX(const double greediness, const VectorXd goal);
+  VectorXd TargetX(const double greediness, const Pose& goal,
+                   const VectorXd& greedy_initial_X);
 
   VectorXd Steer(const VectorXd& X_root, const VectorXd& X_goal);
 
   double CalculateNearRadius();
 
-  void RRT_star(VectorXd X0, const double resolution);
+  Tree RRT_star(VectorXd X0, const Pose& goal, const double resolution);
 
  private:
   // Looks like limits for all joints are [-175, +175] degrees

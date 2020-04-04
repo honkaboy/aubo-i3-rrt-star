@@ -14,7 +14,8 @@ Tree::Tree(const Node& root,
     : distance_metric_(distance_metric), kMaxNodes(max_nodes) {
   nodes_.push_back(root);
   // Make root the current best node.
-  best_node_and_cost_to_go_ = {0, root.cost_to_go};
+  const NodeID root_id = nodes_.size() - 1;
+  best_node_and_cost_to_go_ = std::make_pair(root_id, root.cost_to_go);
 }
 
 NodeID Tree::Add(const Node& new_node, bool is_goal) {
@@ -70,7 +71,7 @@ Node Tree::GetNode(const NodeID node_id) {
   return nodes_[node_id];
 }
 
-VectorXd GetBestNodePosition() {
+VectorXd Tree::GetBestNodePosition() {
   return nodes_[best_node_and_cost_to_go_.first].position;
 }
 
