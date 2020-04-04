@@ -44,7 +44,7 @@ class PlannerImpl : public Planner {
 
   double PlannerImpl::CostToGoMetric(const VectorXd& X, const Pose& goal);
 
-  bool AtGoal(const VectorXd& position, const double resolution);
+  bool AtPose(const VectorXd& position, const Pose& pose, const double resolution);
 
   VectorXd TargetX(const double greediness, const VectorXd goal);
 

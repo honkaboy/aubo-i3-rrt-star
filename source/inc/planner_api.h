@@ -8,7 +8,7 @@
 // You may add additional methods to this class
 class Pose {
  public:
-  typedef Eigen::Transform<double, 3, Affine> AffineTransform_t;
+  typedef Eigen::Transform<double, 3, Eigen::Affine> AffineTransform_t;
   // Express the pose as an affine transform.
   static AffineTransform_t AffineTransform() {
     return Eigen::Translation3d(goal.translation) * goal.orientation_quaternion;

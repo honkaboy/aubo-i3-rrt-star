@@ -1,5 +1,7 @@
 #include "planner_impl.h"
 
+#include <Eigen/LU>
+#include <cmath>
 #include "robot_api.h"
 #include "tree.h"
 
@@ -21,20 +23,23 @@ double PlannerImpl::DistanceMetric(const VectorXd& X0, const VectorXd& X1) {
   return (X0 - X1).lpNorm<Eigen::Infinity>();
 }
 
-double PlannerImpl::CostMetric(const VectorXd& X0, const VectorXd& X1) {
+double PlannerImpl::EdgeCostMetric(const VectorXd& X0, const VectorXd& X1) {
   // Use the 2-norm for edge costs between nodes to reflect that we want to minimize total
   // joint movement.
   return (X0 - X1).lpNorm<2>();
 }
 
-double PlannerImpl::CostToGoMetric(const VectorXd& X, const Pose& goal) {
+double PlannerImpl::DistanceToGoalMetric(const VectorXd& X, const Pose& goal) {
   // Got this metric from https://www.cs.cmu.edu/~cga/dynopt/readings/Rmetric.pdf eqn. 4,
   // which in turn got it from https://doi.org/10.1115/1.2826116
-  const Matrix3d X_rotation = goal.AffineTransform();
   // metric = sqrt(a * norm(log(R2 / R1))**2 + b * norm(t2 - t1)**2)
-  NHONKA ENDED HERE
-
-  return 0.0;
+  const Pose::AffineTransformation_t T_X = forward_kinematics(X);
+  const Pose::AffineTransformation_t T_goal = goal.AffineTransform();
+  const double a = 1.0;
+  const double b = 1.0;
+  const double metric =
+      std::sqrt(a * (T_X.rotation.Inverse() * T_goal.rotation()).log().squaredNorm() +
+                b * (T_X.translation() - T_goal.translation()).squaredNorm());
 }
 
 VectorXd InitialX(const Pose& start, bool& success) {
@@ -100,16 +105,16 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1,
   }
 }
 
-// TODO redefine by cost to goal metric?
-bool PlannerImpl::AtGoal(const VectorXd& position, const double resolution) {
-  VectorXd goal(kDims);
-  goal << 0.50, 0.50, 0.50, 0.50, 0.50, 0.50;
-  // TODO
-  // Either (1) near position + rotation or (2) near target joint angles. 1 seems better.
-  // (2) for the time being. If all within kMaxJointDisplacementBetweenNodes, assume we
-  // can jump to goal (would need to check for collisions though). But ideally we just
-  // guide the final nodes to the goal.
-  return DistanceMetric(position, goal) < resolution;
+bool PlannerImpl::AtPose(const VectorXd& position, const Pose& pose,
+                         const double resolution) {
+  bool success = false;
+  goal_X = RobotAPI::inverse_kinematics(pose.AffineTransform(), position, success);
+  if (success) {
+    // DistanceMetric < resolution ensures that all joints can move to goal within
+    // resolution independently.
+    success = DistanceMetric(position, goal_X) < resolution;
+  }
+  return success;
 }
 
 VectorXd PlannerImpl::TargetX(const double greediness, const Pose& goal,
@@ -162,7 +167,7 @@ void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
   // TODO Define this parameter in a central location.
   const size_t kMaxIterations = 1000;
 
-  const auto cost_to_go = [](const VectorXd& X) { return CostToGoMetric(X, goal); };
+  const auto cost_to_go = [](const VectorXd& X) { return DistanceToGoalMetric(X, goal); };
 
   const double root_node_cost = 0.0;
   Node root(X0, Tree::kNone, root_node_cost, cost_to_go(X0));
@@ -195,11 +200,11 @@ void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
       const Node n_nearest = tree.GetNode(nearest_node_idx);
       // Minimum cost to get to X_new through neighbors.
       double cost_through_best_parent =
-          n_nearest.cost + CostMetric(n_nearest.position, X_new);
+          n_nearest.cost + EdgeCostMetric(n_nearest.position, X_new);
       for (const NodeID neighbor_idx : neighbor_idxs) {
         const Node n_neighbor = tree.GetNode(neighbor_idx);
         const double new_cost_through_neighbor =
-            n_neighbor.cost + CostMetric(n_neighbor.position, X_new);
+            n_neighbor.cost + EdgeCostMetric(n_neighbor.position, X_new);
         if (new_cost_through_neighbor < cost_through_best_parent &&
             !HasCollision(n_neighbor.position, X_new, resolution)) {
           best_parent_idx = neighbor_idx;
@@ -210,7 +215,7 @@ void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
       // Add X_new to tree through best "near" node.
       const Node n_new =
           Node(X_new, best_parent_idx, cost_through_best_parent, cost_to_go(X_new));
-      NodeID n_new_idx = tree.Add(n_new, AtGoal(n_new.position, resolution));
+      NodeID n_new_idx = tree.Add(n_new, AtPose(n_new.position, goal, resolution));
       assert(n_new_idx != Tree::kNone);
 
       // Connect all neighbors of X_new to X_new if that path cost is less.
@@ -218,7 +223,7 @@ void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
         // TODO don't search over best_cost_idx (the best parent for n_new)
         Node n_neighbor = tree.GetNode(neighbor_idx);
         const double neighbor_cost_through_new =
-            n_new.cost + CostMetric(n_neighbor.position, n_new.position);
+            n_new.cost + EdgeCostMetric(n_neighbor.position, n_new.position);
         if (neighbor_cost_through_new < n_neighbor.cost and
             !HasCollision(n_new.position, n_neighbor.position, resolution)) {
           // Best path for neighbor is now through X_new
@@ -231,7 +236,6 @@ void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
     }
   }
 
-  // return tree or path or something
   return tree;
 }
 
