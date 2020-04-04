@@ -72,21 +72,40 @@ VectorXd PlannerImpl::InitialX(const Pose& start, bool& success) {
 
 Path PlannerImpl::ToPath(const Tree& tree, const double resolution) const {
   const std::vector<NodeID> solution = tree.Solution();
-  Eigen::Matrix<double, Eigen::Dynamic, kDims> joint_positions;
-
   Path path;
 
-  std::cout << "HERE" << __LINE__ << "\n" << std::endl;
+  std::vector<Eigen::Matrix<double, Eigen::Dynamic, kDims>> edge_paths;
+
+  size_t num_joint_positions = 0;
   for (auto it = solution.begin(); it != solution.end() - 1; ++it) {
     // Only include the last joint position on the last iteration through. Otherwise we'd
     // double-count intermediate joint positions.
-    const bool include_last = it == (solution.end() - 1);
     const VectorXd& X0 = tree.GetNode(*it).position;
     const VectorXd& X1 = tree.GetNode(*(it + 1)).position;
-    std::cout << "HERE" << __LINE__ << "\n" << std::endl;
-    path.joint_positions << HighResolutionPath(X0, X1, resolution);
+    edge_paths.push_back(HighResolutionPath(X0, X1, resolution));
+
+    // Compute the number of rows total in our joint path matrix.
+    num_joint_positions += edge_paths.back().rows();
   }
-  std::cout << "HERE" << __LINE__ << "\n" << std::endl;
+  // Make space for the final row.
+  num_joint_positions += 1;
+
+  // Store all calculated joint positions in the path object.
+  path.joint_positions.resize(num_joint_positions, kDims);
+  size_t current_row = 0;
+  const size_t column = 0;
+  for (size_t i = 0; i < edge_paths.size(); ++i) {
+    const Eigen::Matrix<double, Eigen::Dynamic, kDims>& edge_path = edge_paths[i];
+    const size_t num_rows = edge_path.rows();
+    path.joint_positions.block(current_row, column, num_rows, kDims) = edge_path;
+    current_row += num_rows;
+  }
+  const VectorXd final_joint_position = tree.GetNode(solution.back()).position;
+  path.joint_positions.row(current_row++) = final_joint_position;
+
+  // TODO Something better than assert.
+  // All rows should have been filled, were they?
+  assert(current_row == path.joint_positions.rows());
 
   // Convert to path object and return;
   return path;
@@ -111,13 +130,11 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
     // of joint positions that reach end, and we don't want to overconstrain the planner.
     // TODO Pass tree by reference instead
     // TODO return !plan_ok if we failed to find a path.
-    std::cout << "HERE" << __LINE__ << "\n" << std::endl;
     Tree tree = RRT_star(initial_joints, end, resolution);
 
     // Print search report. TODO
     // tree.Report();
 
-    std::cout << "HERE" << __LINE__ << "\n" << std::endl;
     // Process tree into path.
     path = ToPath(tree, resolution);
   }
@@ -130,18 +147,16 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
 Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
     const VectorXd& X0, const VectorXd& Xf, const double resolution) const {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points;
-  std::cout << "HERE" << __LINE__ << "\n" << std::endl;
 
   const double linf_dist = (X0 - Xf).lpNorm<Eigen::Infinity>();
   // TODO remove sanity check? Not necessary to double-check the norm.
   assert(linf_dist >= 0.0);
   const int path_count = std::max(static_cast<int>(std::ceil(linf_dist / resolution)), 1);
-  std::cout << "HERE" << __LINE__ << "\n" << std::endl;
   const VectorXd dX = (Xf - X0) / path_count;
+  points.resize(path_count, kDims);
   for (int i = 0; i < path_count; ++i) {
     const VectorXd Xi = X0 + i * dX;
-    std::cout << "HERE" << __LINE__ << "\n" << std::endl;
-    points << Xi;
+    points.row(i) = Xi;
   }
 }
 
@@ -235,14 +250,12 @@ Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
   Node root(X0, Tree::kNone, root_node_cost, cost_to_go(X0));
   Tree tree(root, DistanceMetric, kMaxIterations);
 
-  std::cout << "HERE" << __LINE__ << "\n" << std::endl;
   // TODO Handle case where root is already at goal.
   // TODO Handle case where root is in collision.
   // TODO Handle case where goal is in collision.
 
   // Iterate kMaxIterations -1 times since we already have 1 node in the tree.
   // TODO Maybe fill up the whole tree? This wouldn't do it because of collisions.
-  std::cout << "HERE" << __LINE__ << "\n" << std::endl;
   for (size_t i = 0; i < kMaxIterations - 1; ++i) {
     // Occasional greedy choice directly towards goal.
     const double greediness = 0.1;
@@ -299,7 +312,6 @@ Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
       }
     }
   }
-  std::cout << "HERE" << __LINE__ << "\n" << std::endl;
 
   return tree;
 }
