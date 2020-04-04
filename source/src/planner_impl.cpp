@@ -92,6 +92,8 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
     // Print search report.
     tree.Report();
 
+    // TODO process tree into path.
+
     plan_ok = false;
   }
   return path;

@@ -3,6 +3,7 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <random>
@@ -16,7 +17,10 @@ class Pose {
     return Eigen::Translation3d(translation) * orientation_quaternion;
   }
   Pose() {}
-  Pose(const double radius) {
+  Pose(const double min_radius, const double max_radius) {
+    // TODO better error handling than this.
+    assert(max_radius >= min_radius);
+
     // TODO not the most efficient to recreate the engine every call, maybe? But this
     // function isn't called too many times, so not worth optimizing right now for the
     // sake of time.
@@ -25,7 +29,7 @@ class Pose {
     std::uniform_real_distribution<double> dist(0, 1);
 
     // Generate random scale [0,1]
-    const double scale = dist(gen);
+    const double scale = dist(gen) * (max_radius - min_radius) + min_radius;
 
     // Make random rotation.
     // Random angle [-pi, pi]
@@ -33,7 +37,7 @@ class Pose {
     const Eigen::Vector3d axis = Eigen::Vector3d::Random().normalized();
 
     // Make random pose with radius <= \p radius.
-    translation = scale * radius * Eigen::Vector3d::Random().normalized();
+    translation = scale * Eigen::Vector3d::Random().normalized();
     orientation_quaternion = Eigen::AngleAxisd(angle, axis);
   }
   // The orientation as a quaternion

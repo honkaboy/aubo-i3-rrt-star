@@ -8,13 +8,15 @@ int main(int argc, char** argv) {
   Planner* planner;
   // Replace with a new version of your planner here
   planner = new PlannerImpl(resolution);
-  // basic test case format
-  // make 2 poses
-  // You will find and fill valid poses
-  Pose pose1, pose2;
-  // make response variable
+
+  const double min_radius = 0.3;  // m? Don't know how aubo i3 units are defined
+  const double max_radius = 0.5;
+
+  // Generate random to / from poses.
+  const Pose pose1(min_radius, max_radius);
+  const Pose pose2(min_radius, max_radius);
+
   bool ok;
-  // call planner
   Path result = planner->plan(pose1, pose2, resolution, ok);
   if (ok) {
     std::cout << "Path plan was successful" << std::endl;
