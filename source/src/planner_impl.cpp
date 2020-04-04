@@ -158,6 +158,7 @@ Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
     const VectorXd Xi = X0 + i * dX;
     points.row(i) = Xi;
   }
+  return points;
 }
 
 bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& Xf,
