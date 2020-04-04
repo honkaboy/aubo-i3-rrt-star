@@ -3,8 +3,8 @@
 
 #include <Eigen/Dense>
 
-// static constexpr size_t kDims = 6;
+static constexpr size_t kDims = 6;
 typedef uint32_t NodeID;
-typedef Eigen::Matrix<double, 1, 6> Joint;
+typedef Eigen::Matrix<double, 1, kDims> Joint;
 
 #endif

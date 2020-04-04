@@ -12,8 +12,6 @@
 // double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
 // double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
 
-static constexpr size_t kDims = 6;
-
 class PlannerImpl : public Planner {
  public:
   PlannerImpl(const double resolution)
