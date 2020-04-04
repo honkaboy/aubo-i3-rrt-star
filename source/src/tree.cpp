@@ -8,6 +8,8 @@ using Eigen::MatrixXd;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
 
+constexpr NodeID Tree::kNone;
+
 Tree::Tree(const Node& root,
            std::function<double(const VectorXd&, const VectorXd&)> distance_metric,
            const size_t max_nodes)

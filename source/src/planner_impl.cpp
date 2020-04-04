@@ -1,8 +1,8 @@
 #include "planner_impl.h"
 
-#include <Eigen/MatrixLogarithm.h>
 #include <Eigen/LU>
 #include <cmath>
+#include <iostream>
 #include "planner_api.h"
 #include "robot_api.h"
 #include "tree.h"
@@ -15,10 +15,11 @@ using Eigen::VectorXd;
 
 // TODO cleanup:
 // - go though and make things references, const refs where possible.
-// - make functions static where possible
+// - make functions static or const where possible
 // - Dox for class
 // - Replace asserts.
 // - Loops: iterators
+// - Make consts constexpr where possible.
 
 double PlannerImpl::DistanceMetric(const VectorXd& X0, const VectorXd& X1) {
   // Use the inf-norm for search distance to reflect that each joint is independent.
@@ -40,13 +41,22 @@ double PlannerImpl::DistanceToGoalMetric(const VectorXd& X, const Pose& goal) {
   const double a = 1.0;
   const double b = 1.0;
 
-  Matrix3d tmp;
-  // TODO There's no doubt something more efficient in eigen than calling inverse() here.
-  auto tmp2 = (T_X.rotation().inverse() * T_goal.rotation()).log();
-  tmp2.evalTo(tmp);
+  // Calculate log(R2/R1). From
+  // https://en.wikipedia.org/wiki/Axis%E2%80%93angle_representation
+  const Eigen::AngleAxisd R(T_X.rotation().inverse() * T_goal.rotation());
+  const double angle = R.angle();
+  Matrix3d log_R = Matrix3d::Zero();
+  // calculate with deg2rad
+  if (angle > 0.001 * M_PI / 180.0) {
+    log_R = angle / (2 * std::sin(angle)) *
+            (R.toRotationMatrix() - R.toRotationMatrix().transpose());
+  }
+
+  // Calculate the metric.
   const double metric =
-      std::sqrt(a * tmp.squaredNorm() +
+      std::sqrt(a * log_R.squaredNorm() +
                 b * (T_X.translation() - T_goal.translation()).squaredNorm());
+  return metric;
 }
 
 VectorXd PlannerImpl::InitialX(const Pose& start, bool& success) {
@@ -132,8 +142,8 @@ VectorXd PlannerImpl::TargetX(const double greediness, const Pose& goal,
     // In the greedy case, go directly to goal. Inverse kinematics specifies the goal
     // state from a given greedy_initial_X.
     bool success = false;
-    target = RobotAPI::inverse_kinematics(goal.AffineTransform().matrix(),
-                                          greedy_initial_X, success);
+    target =
+        RobotAPI::inverse_kinematics(goal.AffineTransform(), greedy_initial_X, success);
     // TODO something smarter than assert here.
     assert(success);
   } else {
@@ -175,7 +185,9 @@ Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
   // TODO Define this parameter in a central location.
   const size_t kMaxIterations = 1000;
 
-  const auto cost_to_go = [](const VectorXd& X) { return DistanceToGoalMetric(X, goal); };
+  const auto cost_to_go = [&goal](const VectorXd& X) {
+    return DistanceToGoalMetric(X, goal);
+  };
 
   const double root_node_cost = 0.0;
   Node root(X0, Tree::kNone, root_node_cost, cost_to_go(X0));
