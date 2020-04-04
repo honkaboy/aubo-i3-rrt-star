@@ -8,6 +8,11 @@
 // You may add additional methods to this class
 class Pose {
  public:
+  typedef Eigen::Transform<double, 3, Affine> AffineTransform_t;
+  // Express the pose as an affine transform.
+  static AffineTransform_t AffineTransform() {
+    return Eigen::Translation3d(goal.translation) * goal.orientation_quaternion;
+  }
   // The orientation as a quaternion
   Eigen::Quaterniond orientation_quaternion;
   // Translation vector in meters [x, y, z]
@@ -35,7 +40,8 @@ class Planner {
   // path is) plan_ok - by reference flag where true means the plan was successfully
   // planned, false means a plan could not be found returns - a Path object representing
   // the planned path
-  virtual Path plan(const Pose& start, const Pose& end, double resolution, bool& plan_ok) {
+  virtual Path plan(const Pose& start, const Pose& end, double resolution,
+                    bool& plan_ok) {
     plan_ok = false;
     return Path();
   }

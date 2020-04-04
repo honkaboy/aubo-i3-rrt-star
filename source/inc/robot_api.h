@@ -3,16 +3,19 @@
 
 #include <Eigen/Dense>
 
+#include "planner_api.h"
+
 class RobotAPI {
  public:
+  /// TODO update dox
   /// Inverse Kinematics function returns joint positions required to reach a target pose
-  /// given a starting point
+  /// given a starting poiot
   /// target_pose - the target pose to obtain corresponding joint positions as an affine
   /// transformation matrix [R [t;1]]
   /// initial_joints - joint positions to start solving from
   /// success - by reference flag where true indicates an ik solution was found returns a
   /// vector of joint positions corresponding to the solution
-  static Eigen::VectorXd inverse_kinematics(const Eigen::Matrix4d target_pose,
+  static Eigen::VectorXd inverse_kinematics(const Pose::AffineTransform_t target_pose,
                                             const Eigen::VectorXd& initial_joints,
                                             bool& success);
 
@@ -20,7 +23,7 @@ class RobotAPI {
   // corresponds joint positions to a transform
   // joint_target - the vector of joint positions to correspond to a transform returns
   // affine transform matrix
-  static Eigen::MatrixXd forward_kinematics(const Eigen::VectorXd& joint_target);
+  static Pose::AffineTransform_t forward_kinematics(const Eigen::VectorXd& joint_target);
 
   // Stub collision checking function, where joints is the joint position of the robot to
   // evaluate collisions returns true if collision is detected, false if not

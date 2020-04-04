@@ -3,6 +3,7 @@
 #include "robot_api.h"
 #include "tree.h"
 
+using Eigen::Matrix3d;
 using Eigen::Matrix4d;
 using Eigen::MatrixXd;
 using Eigen::Vector3d;
@@ -27,7 +28,12 @@ double PlannerImpl::CostMetric(const VectorXd& X0, const VectorXd& X1) {
 }
 
 double PlannerImpl::CostToGoMetric(const VectorXd& X, const Pose& goal) {
-  /// TODO define some objective |d_position| + |d_orientation|
+  // Got this metric from https://www.cs.cmu.edu/~cga/dynopt/readings/Rmetric.pdf eqn. 4,
+  // which in turn got it from https://doi.org/10.1115/1.2826116
+  const Matrix3d X_rotation = goal.AffineTransform();
+  // metric = sqrt(a * norm(log(R2 / R1))**2 + b * norm(t2 - t1)**2)
+  NHONKA ENDED HERE
+
   return 0.0;
 }
 
@@ -36,7 +42,8 @@ VectorXd InitialX(const Pose& start, bool& success) {
   /// joint position.
   VectorXd origin(kDims);
   origin << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-  VectorXd initial_joints = RobotAPI::inverse_kinematics(start, origin, success);
+  VectorXd initial_joints =
+      RobotAPI::inverse_kinematics(start.AffineTransform().matrix(), origin, success);
   return initial_joints
 }
 
@@ -111,9 +118,9 @@ VectorXd PlannerImpl::TargetX(const double greediness, const Pose& goal,
   if (uniform_distribution_(engine_) < greediness) {
     // In the greedy case, go directly to goal. Inverse kinematics specifies the goal
     // state from a given greedy_initial_X.
-    const Matrix4d T_goal = PoseToAffineTransform(goal);
     bool success = false;
-    target = RobotAPI::inverse_kinematics(T_goal, greedy_initial_X, success);
+    target = RobotAPI::inverse_kinematics(goal.AffineTransform().matrix(),
+                                          greedy_initial_X, success);
     // TODO something smarter than assert here.
     assert(success);
   } else {
@@ -143,18 +150,22 @@ VectorXd PlannerImpl::Steer(const VectorXd& X_root, const VectorXd& X_goal) {
   return steered;
 }
 
+// TODO could be defined at class construction instead of as a function?
 double PlannerImpl::CalculateNearRadius() {
   // Since we're using l-inf norm for the distance metric, just search within... oh, I
   // dunno, 3x max distance between nodes?
+  // TODO Define this parameter in a central location.
   return 3.0 * kMaxJointDisplacementBetweenNodes;
 }
 
 void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolution) {
+  // TODO Define this parameter in a central location.
   const size_t kMaxIterations = 1000;
 
   const auto cost_to_go = [](const VectorXd& X) { return CostToGoMetric(X, goal); };
 
-  Node root(X0, Tree::kNone, 0.0, cost_to_go(X0));
+  const double root_node_cost = 0.0;
+  Node root(X0, Tree::kNone, root_node_cost, cost_to_go(X0));
   Tree tree(root, DistanceMetric, kMaxIterations);
 
   // TODO Handle case where root is already at goal.
@@ -198,7 +209,7 @@ void PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
 
       // Add X_new to tree through best "near" node.
       const Node n_new =
-          Node(X_new, best_parent_idx, cost_through_best_parent, cost_to_go(X_new, goal));
+          Node(X_new, best_parent_idx, cost_through_best_parent, cost_to_go(X_new));
       NodeID n_new_idx = tree.Add(n_new, AtGoal(n_new.position, resolution));
       assert(n_new_idx != Tree::kNone);
 
