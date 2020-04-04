@@ -3,15 +3,38 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <chrono>
+#include <cmath>
+#include <random>
 
 // Represents a 3D robot pose consisting of a quaternion and translation vector
-// You may add additional methods to this class
 class Pose {
  public:
   typedef Eigen::Transform<double, 3, Eigen::Affine> AffineTransform_t;
   // Express the pose as an affine transform.
   AffineTransform_t AffineTransform() const {
     return Eigen::Translation3d(translation) * orientation_quaternion;
+  }
+  Pose() {}
+  Pose(const double radius) {
+    // TODO not the most efficient to recreate the engine every call, maybe? But this
+    // function isn't called too many times, so not worth optimizing right now for the
+    // sake of time.
+    const unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<double> dist(0, 1);
+
+    // Generate random scale [0,1]
+    const double scale = dist(gen);
+
+    // Make random rotation.
+    // Random angle [-pi, pi]
+    const double angle = dist(gen) * 2 * M_PI - M_PI;
+    const Eigen::Vector3d axis = Eigen::Vector3d::Random().normalized();
+
+    // Make random pose with radius <= \p radius.
+    translation = scale * radius * Eigen::Vector3d::Random().normalized();
+    orientation_quaternion = Eigen::AngleAxisd(angle, axis);
   }
   // The orientation as a quaternion
   Eigen::Quaterniond orientation_quaternion;
