@@ -5,13 +5,13 @@
 #include "types.h"
 
 struct Node {
-  Node(const Eigen::VectorXd& position, const NodeID parent, const double cost,
+  Node(const Joint& position, const NodeID parent, const double cost,
        const double cost_to_go);
   inline bool operator==(const Node& right) const {
     return (position == right.position) && (parent == right.parent) &&
            (cost == right.cost) && (cost_to_go == right.cost_to_go);
   }
-  Eigen::VectorXd position;
+  Joint position;
   NodeID parent;
   double cost;
   double cost_to_go;

@@ -1,17 +1,13 @@
 #include "tree.h"
+
 #include <assert.h>
 #include <iostream>
 #include <limits>
 
-using Eigen::Matrix4d;
-using Eigen::MatrixXd;
-using Eigen::Vector3d;
-using Eigen::VectorXd;
-
 constexpr NodeID Tree::kNone;
 
 Tree::Tree(const Node& root,
-           std::function<double(const VectorXd&, const VectorXd&)> distance_metric,
+           std::function<double(const Joint&, const Joint&)> distance_metric,
            const size_t max_nodes)
     : distance_metric_(distance_metric), kMaxNodes(max_nodes) {
   nodes_.push_back(root);
@@ -42,7 +38,7 @@ NodeID Tree::Add(const Node& new_node, bool is_goal) {
   return id_added_node;
 }
 
-std::vector<NodeID> Tree::near_idxs(const VectorXd& position, double radius) {
+std::vector<NodeID> Tree::near_idxs(const Joint& position, double radius) {
   std::vector<NodeID> near_nodes;
   for (size_t i = 0; i < nodes_.size(); ++i) {
     const double distance = distance_metric_(position, nodes_[i].position);
@@ -53,7 +49,7 @@ std::vector<NodeID> Tree::near_idxs(const VectorXd& position, double radius) {
   return near_nodes;
 }
 
-NodeID Tree::nearest(const VectorXd& position) {
+NodeID Tree::nearest(const Joint& position) {
   NodeID nearest = kNone;
   double nearest_distance = std::numeric_limits<double>::infinity();
   for (size_t i = 0; i < nodes_.size(); ++i) {
@@ -73,7 +69,7 @@ Node Tree::GetNode(const NodeID node_id) const {
   return nodes_[node_id];
 }
 
-VectorXd Tree::GetBestNodePosition() {
+Joint Tree::GetBestNodePosition() {
   return nodes_[best_node_and_cost_to_go_.first].position;
 }
 

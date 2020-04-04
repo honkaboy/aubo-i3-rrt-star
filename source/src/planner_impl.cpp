@@ -7,12 +7,6 @@
 #include "robot_api.h"
 #include "tree.h"
 
-using Eigen::Matrix3d;
-using Eigen::Matrix4d;
-using Eigen::MatrixXd;
-using Eigen::Vector3d;
-using Eigen::VectorXd;
-
 // TODO cleanup:
 // - go though and make things references, const refs where possible.
 // - make functions static or const where possible
@@ -22,18 +16,18 @@ using Eigen::VectorXd;
 // - Make consts constexpr where possible.
 // - Integration test with a bunch of different poses.
 
-double PlannerImpl::DistanceMetric(const VectorXd& X0, const VectorXd& X1) {
+double PlannerImpl::DistanceMetric(const Joint& X0, const Joint& X1) {
   // Use the inf-norm for search distance to reflect that each joint is independent.
   return (X0 - X1).lpNorm<Eigen::Infinity>();
 }
 
-double PlannerImpl::EdgeCostMetric(const VectorXd& X0, const VectorXd& X1) {
+double PlannerImpl::EdgeCostMetric(const Joint& X0, const Joint& X1) {
   // Use the 2-norm for edge costs between nodes to reflect that we want to minimize total
   // joint movement.
   return (X0 - X1).lpNorm<2>();
 }
 
-double PlannerImpl::DistanceToGoalMetric(const VectorXd& X, const Pose& goal) {
+double PlannerImpl::DistanceToGoalMetric(const Joint& X, const Pose& goal) {
   // Got this metric from https://www.cs.cmu.edu/~cga/dynopt/readings/Rmetric.pdf eqn. 4,
   // which in turn got it from https://doi.org/10.1115/1.2826116
   // metric = sqrt(a * norm(log(R2 / R1))**2 + b * norm(t2 - t1)**2)
@@ -46,7 +40,7 @@ double PlannerImpl::DistanceToGoalMetric(const VectorXd& X, const Pose& goal) {
   // https://en.wikipedia.org/wiki/Axis%E2%80%93angle_representation
   const Eigen::AngleAxisd R(T_X.rotation().inverse() * T_goal.rotation());
   const double angle = R.angle();
-  Matrix3d log_R = Matrix3d::Zero();
+  Eigen::Matrix3d log_R = Eigen::Matrix3d::Zero();
   // calculate with deg2rad
   if (angle > 0.001 * M_PI / 180.0) {
     log_R = angle / (2 * std::sin(angle)) *
@@ -60,12 +54,12 @@ double PlannerImpl::DistanceToGoalMetric(const VectorXd& X, const Pose& goal) {
   return metric;
 }
 
-VectorXd PlannerImpl::InitialX(const Pose& start, bool& success) {
+Joint PlannerImpl::InitialX(const Pose& start, bool& success) {
   /// Use the inverse kinematics starting from the joint origin to obtain the initial
   /// joint position.
-  VectorXd origin(kDims);
+  Joint origin(kDims);
   origin << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-  VectorXd initial_joints =
+  Joint initial_joints =
       RobotAPI::inverse_kinematics(start.AffineTransform(), origin, success);
   return initial_joints;
 }
@@ -80,8 +74,8 @@ Path PlannerImpl::ToPath(const Tree& tree, const double resolution) const {
   for (auto it = solution.begin(); it != solution.end() - 1; ++it) {
     // Only include the last joint position on the last iteration through. Otherwise we'd
     // double-count intermediate joint positions.
-    const VectorXd& X0 = tree.GetNode(*it).position;
-    const VectorXd& X1 = tree.GetNode(*(it + 1)).position;
+    const Joint& X0 = tree.GetNode(*it).position;
+    const Joint& X1 = tree.GetNode(*(it + 1)).position;
     edge_paths.push_back(HighResolutionPath(X0, X1, resolution));
 
     // Compute the number of rows total in our joint path matrix.
@@ -100,7 +94,7 @@ Path PlannerImpl::ToPath(const Tree& tree, const double resolution) const {
     path.joint_positions.block(current_row, column, num_rows, kDims) = edge_path;
     current_row += num_rows;
   }
-  const VectorXd final_joint_position = tree.GetNode(solution.back()).position;
+  const Joint final_joint_position = tree.GetNode(solution.back()).position;
   path.joint_positions.row(current_row++) = final_joint_position;
 
   // TODO Something better than assert.
@@ -122,7 +116,7 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   /// this function here that generates the initial joint angles which are otherwise
   /// likely underconstrained (assuming inverse kinematics pose -> joints is a many-to-one
   /// function.
-  VectorXd initial_joints = InitialX(start, plan_ok);
+  Joint initial_joints = InitialX(start, plan_ok);
   if (!plan_ok) {
     std::cout << "Error: Failed to obtain initial joint angles." << std::endl;
   } else {
@@ -145,23 +139,23 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
 // apart (each joint individually). Note: Adds X0, and Xi..., but not Xf, so guaranteed to
 // return a path length of at least 1.c
 Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
-    const VectorXd& X0, const VectorXd& Xf, const double resolution) const {
+    const Joint& X0, const Joint& Xf, const double resolution) const {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points;
 
   const double linf_dist = (X0 - Xf).lpNorm<Eigen::Infinity>();
   // TODO remove sanity check? Not necessary to double-check the norm.
   assert(linf_dist >= 0.0);
   const int path_count = std::max(static_cast<int>(std::ceil(linf_dist / resolution)), 1);
-  const VectorXd dX = (Xf - X0) / path_count;
+  const Joint dX = (Xf - X0) / path_count;
   points.resize(path_count, kDims);
   for (int i = 0; i < path_count; ++i) {
-    const VectorXd Xi = X0 + i * dX;
+    const Joint Xi = X0 + i * dX;
     points.row(i) = Xi;
   }
   return points;
 }
 
-bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& Xf,
+bool PlannerImpl::HasCollision(const Joint& X0, const Joint& Xf,
                                const double resolution) const {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points =
       HighResolutionPath(X0, Xf, resolution);
@@ -180,10 +174,10 @@ bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& Xf,
   return RobotAPI::in_collision(Xf);
 }
 
-bool PlannerImpl::AtPose(const VectorXd& position, const Pose& pose,
+bool PlannerImpl::AtPose(const Joint& position, const Pose& pose,
                          const double resolution) {
   bool success = false;
-  const VectorXd goal_X =
+  const Joint goal_X =
       RobotAPI::inverse_kinematics(pose.AffineTransform(), position, success);
   if (success) {
     // DistanceMetric < resolution ensures that all joints can move to goal within
@@ -193,9 +187,9 @@ bool PlannerImpl::AtPose(const VectorXd& position, const Pose& pose,
   return success;
 }
 
-VectorXd PlannerImpl::TargetX(const double greediness, const Pose& goal,
-                              const VectorXd& greedy_initial_X) {
-  VectorXd target(kDims);
+Joint PlannerImpl::TargetX(const double greediness, const Pose& goal,
+                              const Joint& greedy_initial_X) {
+  Joint target(kDims);
   if (uniform_distribution_(engine_) < greediness) {
     // In the greedy case, go directly to goal. Inverse kinematics specifies the goal
     // state from a given greedy_initial_X.
@@ -208,16 +202,16 @@ VectorXd PlannerImpl::TargetX(const double greediness, const Pose& goal,
     // Otherwise, randomly select a target in the state space.
     // Note: This works because the min/max joint angles are symmetric [-max, max] and
     // Random() generates x \in [-1, 1].
-    target = VectorXd::Random(kDims) * kSymmetricMaxJointAngle;
+    target = Joint::Random(kDims) * kSymmetricMaxJointAngle;
   }
   return target;
 }
 
-VectorXd PlannerImpl::Steer(const VectorXd& X_root, const VectorXd& X_goal) {
+Joint PlannerImpl::Steer(const Joint& X_root, const Joint& X_goal) {
   // TODO update comment since linf is no longer explicit
   // Steer in the direction of X_goal without any single joint exceeding dx =
   // kMaxJointDisplacementBetweenNodes and without overshooting the goal.
-  VectorXd steered(kDims);
+  Joint steered(kDims);
   const double distance = DistanceMetric(X_root, X_goal);
   if (distance < kMaxJointDisplacementBetweenNodes) {
     steered = X_goal;
@@ -239,11 +233,11 @@ double PlannerImpl::CalculateNearRadius() {
   return 3.0 * kMaxJointDisplacementBetweenNodes;
 }
 
-Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolution) {
+Tree PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution) {
   // TODO Define this parameter in a central location.
   const size_t kMaxIterations = 1000;
 
-  const auto cost_to_go = [&goal](const VectorXd& X) {
+  const auto cost_to_go = [&goal](const Joint& X) {
     return DistanceToGoalMetric(X, goal);
   };
 
@@ -260,13 +254,13 @@ Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
   for (size_t i = 0; i < kMaxIterations - 1; ++i) {
     // Occasional greedy choice directly towards goal.
     const double greediness = 0.1;
-    VectorXd X_target = TargetX(greediness, goal, tree.GetBestNodePosition());
+    Joint X_target = TargetX(greediness, goal, tree.GetBestNodePosition());
 
     // From the "randomly" generated target state, generate a new candidate state.
     // TODO don't build off of goal nodes?
     const NodeID nearest_node_idx = tree.nearest(X_target);
-    const VectorXd X_nearest = tree.GetNode(nearest_node_idx).position;
-    const VectorXd X_new = Steer(X_nearest, X_target);
+    const Joint X_nearest = tree.GetNode(nearest_node_idx).position;
+    const Joint X_new = Steer(X_nearest, X_target);
 
     if (!HasCollision(X_nearest, X_new, resolution)) {
       const double radius = CalculateNearRadius();

@@ -9,11 +9,6 @@
 #include "tree.h"
 #include "types.h"
 
-using Eigen::Matrix4d;
-using Eigen::MatrixXd;
-using Eigen::Vector3d;
-using Eigen::VectorXd;
-
 // double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
 // double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
 
@@ -39,32 +34,30 @@ class PlannerImpl : public Planner {
   /// \return Path object representing the planned path
   Path plan(const Pose& start, const Pose& end, double resolution, bool& plan_ok) final;
 
-  VectorXd InitialX(const Pose& start, bool& success);
+  Joint InitialX(const Pose& start, bool& success);
 
   Path ToPath(const Tree& tree, const double resolution) const;
 
-  bool HasCollision(const VectorXd& X0, const VectorXd& Xf,
-                    const double resolution) const;
+  bool HasCollision(const Joint& X0, const Joint& Xf, const double resolution) const;
 
   Eigen::Matrix<double, Eigen::Dynamic, kDims> HighResolutionPath(
-      const VectorXd& X0, const VectorXd& Xf, const double resolution) const;
+      const Joint& X0, const Joint& Xf, const double resolution) const;
 
-  static double DistanceMetric(const VectorXd& X0, const VectorXd& X1);
+  static double DistanceMetric(const Joint& X0, const Joint& X1);
 
-  static double EdgeCostMetric(const VectorXd& X0, const VectorXd& X1);
+  static double EdgeCostMetric(const Joint& X0, const Joint& X1);
 
-  static double DistanceToGoalMetric(const VectorXd& X, const Pose& goal);
+  static double DistanceToGoalMetric(const Joint& X, const Pose& goal);
 
-  bool AtPose(const VectorXd& position, const Pose& pose, const double resolution);
+  bool AtPose(const Joint& position, const Pose& pose, const double resolution);
 
-  VectorXd TargetX(const double greediness, const Pose& goal,
-                   const VectorXd& greedy_initial_X);
+  Joint TargetX(const double greediness, const Pose& goal, const Joint& greedy_initial_X);
 
-  VectorXd Steer(const VectorXd& X_root, const VectorXd& X_goal);
+  Joint Steer(const Joint& X_root, const Joint& X_goal);
 
   double CalculateNearRadius();
 
-  Tree RRT_star(VectorXd X0, const Pose& goal, const double resolution);
+  Tree RRT_star(Joint X0, const Pose& goal, const double resolution);
 
  private:
   const double kSymmetricMaxJointAngle;
