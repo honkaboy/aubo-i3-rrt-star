@@ -20,6 +20,7 @@ using Eigen::VectorXd;
 // - Replace asserts.
 // - Loops: iterators
 // - Make consts constexpr where possible.
+// - Integration test with a bunch of different poses.
 
 double PlannerImpl::DistanceMetric(const VectorXd& X0, const VectorXd& X1) {
   // Use the inf-norm for search distance to reflect that each joint is independent.
@@ -69,6 +70,28 @@ VectorXd PlannerImpl::InitialX(const Pose& start, bool& success) {
   return initial_joints;
 }
 
+Path PlannerImpl::ToPath(const Tree& tree, const double resolution) const {
+  const std::vector<NodeID> solution = tree.Solution();
+  Eigen::Matrix<double, Eigen::Dynamic, kDims> joint_positions;
+
+  Path path;
+
+  std::cout << "HERE" << __LINE__ << "\n" << std::cout;
+  for (auto it = solution.begin(); it != solution.end() - 1; ++it) {
+    // Only include the last joint position on the last iteration through. Otherwise we'd
+    // double-count intermediate joint positions.
+    const bool include_last = it == (solution.end() - 1);
+    const VectorXd& X0 = tree.GetNode(*it).position;
+    const VectorXd& X1 = tree.GetNode(*(it + 1)).position;
+    std::cout << "HERE" << __LINE__ << "\n" << std::cout;
+    path.joint_positions << HighResolutionPath(X0, X1, resolution);
+  }
+  std::cout << "HERE" << __LINE__ << "\n" << std::cout;
+
+  // Convert to path object and return;
+  return path;
+}
+
 // Default definition of a virtual planner
 Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
                        bool& plan_ok) {
@@ -87,41 +110,58 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
     // NOTE: We don't just calculate a target joint position because there is likely a set
     // of joint positions that reach end, and we don't want to overconstrain the planner.
     // TODO Pass tree by reference instead
+    // TODO return !plan_ok if we failed to find a path.
+    std::cout << "HERE" << __LINE__ << "\n" << std::cout;
     Tree tree = RRT_star(initial_joints, end, resolution);
 
-    // Print search report.
-    tree.Report();
+    // Print search report. TODO
+    // tree.Report();
 
-    // TODO process tree into path.
-
-    plan_ok = false;
+    std::cout << "HERE" << __LINE__ << "\n" << std::cout;
+    // Process tree into path.
+    path = ToPath(tree, resolution);
   }
   return path;
 }
 
-bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& X1,
-                               const double resolution) {
-  const double l1_dist = (X0 - X1).lpNorm<1>();
-  const double linf_dist = (X0 - X1).lpNorm<Eigen::Infinity>();
-  if (l1_dist < resolution) {
-    // Nodes are equivalent.
-    return RobotAPI::in_collision(X0);
-  }
+// TODO dox Creates a high-resolution path along X0 -> X1 at most \p resolution
+// apart (each joint individually). Note: Adds X0, and Xi..., but not Xf, so guaranteed to
+// return a path length of at least 1.c
+Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
+    const VectorXd& X0, const VectorXd& Xf, const double resolution) const {
+  Eigen::Matrix<double, Eigen::Dynamic, kDims> points;
+  std::cout << "HERE" << __LINE__ << "\n" << std::cout;
 
-  // Make sure we check for collisions <= resolution for every joint individually so we
-  // can guarantee the path between nodes is collision-free up to resolution.
-  const double path_count = std::ceil(linf_dist / resolution);
-  const VectorXd dX = (X1 - X0) / path_count;
-
-  for (size_t i = 0; i < path_count; ++i) {
+  const double linf_dist = (X0 - Xf).lpNorm<Eigen::Infinity>();
+  // TODO remove sanity check? Not necessary to double-check the norm.
+  assert(linf_dist >= 0.0);
+  const int path_count = std::max(static_cast<int>(std::ceil(linf_dist / resolution)), 1);
+  std::cout << "HERE" << __LINE__ << "\n" << std::cout;
+  const VectorXd dX = (Xf - X0) / path_count;
+  for (int i = 0; i < path_count; ++i) {
     const VectorXd Xi = X0 + i * dX;
-    if (RobotAPI::in_collision(Xi)) {
+    std::cout << "HERE" << __LINE__ << "\n" << std::cout;
+    points << Xi;
+  }
+}
+
+bool PlannerImpl::HasCollision(const VectorXd& X0, const VectorXd& Xf,
+                               const double resolution) const {
+  Eigen::Matrix<double, Eigen::Dynamic, kDims> points =
+      HighResolutionPath(X0, Xf, resolution);
+
+  // Check for collisions <= resolution for every joint individually so we
+  // can guarantee the path between nodes is collision-free up to resolution.
+  // TODO this is pretty inefficient because Eigen matrices are stored column-wise. There
+  // a better way to iterate over rows?
+  for (size_t i = 0; i < points.rows(); ++i) {
+    if (RobotAPI::in_collision(points.row(i))) {
       return true;
     }
   }
-  if (RobotAPI::in_collision(X1)) {
-    return true;
-  }
+
+  // Note: points does not contain Xf.
+  return RobotAPI::in_collision(Xf);
 }
 
 bool PlannerImpl::AtPose(const VectorXd& position, const Pose& pose,
@@ -195,12 +235,14 @@ Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
   Node root(X0, Tree::kNone, root_node_cost, cost_to_go(X0));
   Tree tree(root, DistanceMetric, kMaxIterations);
 
+  std::cout << "HERE" << __LINE__ << "\n" << std::cout;
   // TODO Handle case where root is already at goal.
   // TODO Handle case where root is in collision.
   // TODO Handle case where goal is in collision.
 
   // Iterate kMaxIterations -1 times since we already have 1 node in the tree.
   // TODO Maybe fill up the whole tree? This wouldn't do it because of collisions.
+  std::cout << "HERE" << __LINE__ << "\n" << std::cout;
   for (size_t i = 0; i < kMaxIterations - 1; ++i) {
     // Occasional greedy choice directly towards goal.
     const double greediness = 0.1;
@@ -257,6 +299,7 @@ Tree PlannerImpl::RRT_star(VectorXd X0, const Pose& goal, const double resolutio
       }
     }
   }
+  std::cout << "HERE" << __LINE__ << "\n" << std::cout;
 
   return tree;
 }

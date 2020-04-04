@@ -12,9 +12,13 @@ int main(int argc, char** argv) {
   const double min_radius = 0.3;  // m? Don't know how aubo i3 units are defined
   const double max_radius = 0.5;
 
-  // Generate random to / from poses.
-  const Pose pose1(min_radius, max_radius);
-  const Pose pose2(min_radius, max_radius);
+  // Generate "random" to / from poses.
+  // NOTE: Using constant seeds here to make the demo of the planning algorithm
+  // deterministic (e.g. might generate un-reachable poses otherwise).
+  const unsigned seed1 = 2100272238;
+  const unsigned seed2 = 2100390024;
+  const Pose pose1(min_radius, max_radius, seed1);
+  const Pose pose2(min_radius, max_radius, seed2);
 
   bool ok;
   Path result = planner->plan(pose1, pose2, resolution, ok);

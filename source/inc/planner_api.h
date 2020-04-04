@@ -17,14 +17,15 @@ class Pose {
     return Eigen::Translation3d(translation) * orientation_quaternion;
   }
   Pose() {}
-  Pose(const double min_radius, const double max_radius) {
+  Pose(const double min_radius, const double max_radius, const unsigned seed) {
     // TODO better error handling than this.
     assert(max_radius >= min_radius);
 
     // TODO not the most efficient to recreate the engine every call, maybe? But this
     // function isn't called too many times, so not worth optimizing right now for the
     // sake of time.
-    const unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    // Note: Option to generate poses randomly here every time.
+    // const unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dist(0, 1);
 
@@ -47,7 +48,6 @@ class Pose {
 };
 
 // Represents a geometric path as a sequential series of joint positions
-// You may add additional methods to this class
 class Path {
  public:
   // Matrix containing joint positions. Each column represents each joint, each row is a

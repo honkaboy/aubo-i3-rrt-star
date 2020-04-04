@@ -23,8 +23,9 @@ class Tree {
   NodeID Add(const Node& new_node, bool is_goal = false);
   std::vector<NodeID> near_idxs(const VectorXd& position, double radius);
   NodeID nearest(const VectorXd& position);
-  Node GetNode(const NodeID node_id);
+  Node GetNode(const NodeID node_id) const;
   VectorXd GetBestNodePosition();
+  std::vector<NodeID> Solution() const;
   void SetNode(const NodeID node_id, const Node& node);
   double CalculateNearRadius();
   void Report();

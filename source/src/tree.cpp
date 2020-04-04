@@ -66,7 +66,7 @@ NodeID Tree::nearest(const VectorXd& position) {
   return nearest;
 }
 
-Node Tree::GetNode(const NodeID node_id) {
+Node Tree::GetNode(const NodeID node_id) const {
   if (node_id >= nodes_.size()) {
     assert(false);
   }
@@ -83,7 +83,9 @@ void Tree::SetNode(const NodeID node_id, const Node& node) {
   return;
 }
 
-void Tree::Report() {
+std::vector<NodeID> Tree::Solution() const {
+  std::vector<NodeID> solution;
+
   if (!goal_node_idxs_.empty()) {
     // Find the goal node with the smallest cost (from origin).
     const NodeID best_node_idx =
@@ -91,6 +93,22 @@ void Tree::Report() {
                           [this](const NodeID a, const NodeID b) {
                             return nodes_[a].cost < nodes_[b].cost;
                           });
+
+    // Backtrack from best node to obtain the best solution found.
+    NodeID parent = best_node_idx;
+    while (parent != kNone) {
+      solution.push_back(parent);
+      parent = GetNode(parent).parent;
+    }
+  }
+  return solution;
+}
+
+void Tree::Report() {
+  if (!goal_node_idxs_.empty()) {
+    // Find the goal node with the smallest cost (from origin).
+    std::vector<NodeID> solution = Solution();
+    const NodeID best_node_idx = solution.back();
     const Node best_node = nodes_[best_node_idx];
 
     // Print all goal nodes.
@@ -100,17 +118,9 @@ void Tree::Report() {
     }
     std::cout << std::endl;
 
-    // Look at the best node
-    std::vector<NodeID> goal_path;
-    NodeID parent = best_node_idx;
-    // Backtrack through solution.
-    while (parent != kNone) {
-      goal_path.push_back(parent);
-      parent = GetNode(parent).parent;
-    }
     // Print starting at root.
-    std::cout << "Goal path: ";
-    for (auto it = goal_path.rbegin(); it != goal_path.rend(); ++it) {
+    std::cout << "Solution path: ";
+    for (auto it = solution.rbegin(); it != solution.rend(); ++it) {
       std::cout << "{" << *it << " : " << GetNode(*it).cost << "}, ";
     }
     std::cout << std::endl;

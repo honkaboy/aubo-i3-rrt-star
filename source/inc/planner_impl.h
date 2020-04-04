@@ -6,8 +6,8 @@
 #include <Eigen/Dense>
 #include <cmath>
 #include "planner_api.h"
-#include "types.h"
 #include "tree.h"
+#include "types.h"
 
 using Eigen::Matrix4d;
 using Eigen::MatrixXd;
@@ -16,6 +16,8 @@ using Eigen::VectorXd;
 
 // double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
 // double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
+
+static constexpr size_t kDims = 6;
 
 class PlannerImpl : public Planner {
  public:
@@ -39,7 +41,13 @@ class PlannerImpl : public Planner {
 
   VectorXd InitialX(const Pose& start, bool& success);
 
-  bool HasCollision(const VectorXd& X0, const VectorXd& X1, const double resolution);
+  Path ToPath(const Tree& tree, const double resolution) const;
+
+  bool HasCollision(const VectorXd& X0, const VectorXd& Xf,
+                    const double resolution) const;
+
+  Eigen::Matrix<double, Eigen::Dynamic, kDims> HighResolutionPath(
+      const VectorXd& X0, const VectorXd& Xf, const double resolution) const;
 
   static double DistanceMetric(const VectorXd& X0, const VectorXd& X1);
 
@@ -59,9 +67,6 @@ class PlannerImpl : public Planner {
   Tree RRT_star(VectorXd X0, const Pose& goal, const double resolution);
 
  private:
-  // Looks like limits for all joints are [-175, +175] degrees
-  // (aubo_i3_kinematics.cpp:632).
-  const size_t kDims = 6;  // TODO This could be a static constexpr
   const double kSymmetricMaxJointAngle;
   const double kMaxJointDisplacementBetweenNodes;
   std::default_random_engine engine_;
