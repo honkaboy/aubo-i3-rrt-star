@@ -9,12 +9,21 @@
 
 // TODO cleanup:
 // - go though and make things references, const refs where possible.
-// - make functions static or const where possible
 // - Dox for class
 // - Replace asserts.
 // - Loops: iterators
 // - Make consts constexpr where possible.
 // - Integration test with a bunch of different poses.
+
+Joint PlannerImpl::InitialX(const Pose& start, bool& success) {
+  /// Use the inverse kinematics starting from the joint origin to obtain the initial
+  /// joint position.
+  Joint origin(kDims);
+  origin << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+  Joint initial_joints =
+      RobotAPI::inverse_kinematics(start.AffineTransform(), origin, success);
+  return initial_joints;
+}
 
 double PlannerImpl::DistanceMetric(const Joint& X0, const Joint& X1) {
   // Use the inf-norm for search distance to reflect that each joint is independent.
@@ -41,8 +50,7 @@ double PlannerImpl::DistanceToGoalMetric(const Joint& X, const Pose& goal) {
   const Eigen::AngleAxisd R(T_X.rotation().inverse() * T_goal.rotation());
   const double angle = R.angle();
   Eigen::Matrix3d log_R = Eigen::Matrix3d::Zero();
-  // calculate with deg2rad
-  if (angle > 0.001 * M_PI / 180.0) {
+  if (angle > Utilities::DegreesToRadians(0.001)) {
     log_R = angle / (2 * std::sin(angle)) *
             (R.toRotationMatrix() - R.toRotationMatrix().transpose());
   }
@@ -54,55 +62,45 @@ double PlannerImpl::DistanceToGoalMetric(const Joint& X, const Pose& goal) {
   return metric;
 }
 
-Joint PlannerImpl::InitialX(const Pose& start, bool& success) {
-  /// Use the inverse kinematics starting from the joint origin to obtain the initial
-  /// joint position.
-  Joint origin(kDims);
-  origin << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-  Joint initial_joints =
-      RobotAPI::inverse_kinematics(start.AffineTransform(), origin, success);
-  return initial_joints;
-}
-
-Path PlannerImpl::ToPath(const Tree& tree, const double resolution) const {
+void PlannerImpl::ToPath(const Tree& tree, const double resolution, Path& path) {
   const std::vector<NodeID> solution = tree.Solution();
-  Path path;
 
-  std::vector<Eigen::Matrix<double, Eigen::Dynamic, kDims>> edge_paths;
+  if (solution.size() >= 1) {
+    std::vector<Eigen::Matrix<double, Eigen::Dynamic, kDims>> edge_paths;
 
-  size_t num_joint_positions = 0;
-  for (auto it = solution.begin(); it != solution.end() - 1; ++it) {
-    // Only include the last joint position on the last iteration through. Otherwise we'd
-    // double-count intermediate joint positions.
-    const Joint& X0 = tree.GetNode(*it).position;
-    const Joint& X1 = tree.GetNode(*(it + 1)).position;
-    edge_paths.push_back(HighResolutionPath(X0, X1, resolution));
+    size_t num_joint_positions = 0;
+    for (auto it = solution.begin(); it != solution.end() - 1; ++it) {
+      // Only include the last joint position on the last iteration through. Otherwise
+      // we'd double-count intermediate joint positions.
+      const Joint& X0 = tree.GetNode(*it).position;
+      const Joint& X1 = tree.GetNode(*(it + 1)).position;
+      edge_paths.push_back(HighResolutionPath(X0, X1, resolution));
 
-    // Compute the number of rows total in our joint path matrix.
-    num_joint_positions += edge_paths.back().rows();
+      // Compute the number of rows total in our joint path matrix.
+      num_joint_positions += edge_paths.back().rows();
+    }
+    // Make space for the final row.
+    num_joint_positions += 1;
+
+    // Store all calculated joint positions in the path object.
+    path.joint_positions.resize(num_joint_positions, kDims);
+    size_t current_row = 0;
+    const size_t column = 0;
+    for (size_t i = 0; i < edge_paths.size(); ++i) {
+      const Eigen::Matrix<double, Eigen::Dynamic, kDims>& edge_path = edge_paths[i];
+      const size_t num_rows = edge_path.rows();
+      path.joint_positions.block(current_row, column, num_rows, kDims) = edge_path;
+      current_row += num_rows;
+    }
+    const Joint final_joint_position = tree.GetNode(solution.back()).position;
+    path.joint_positions.row(current_row++) = final_joint_position;
+
+    // TODO Something better than assert.
+    // All rows should have been filled, were they?
+    assert(current_row == path.joint_positions.rows());
   }
-  // Make space for the final row.
-  num_joint_positions += 1;
 
-  // Store all calculated joint positions in the path object.
-  path.joint_positions.resize(num_joint_positions, kDims);
-  size_t current_row = 0;
-  const size_t column = 0;
-  for (size_t i = 0; i < edge_paths.size(); ++i) {
-    const Eigen::Matrix<double, Eigen::Dynamic, kDims>& edge_path = edge_paths[i];
-    const size_t num_rows = edge_path.rows();
-    path.joint_positions.block(current_row, column, num_rows, kDims) = edge_path;
-    current_row += num_rows;
-  }
-  const Joint final_joint_position = tree.GetNode(solution.back()).position;
-  path.joint_positions.row(current_row++) = final_joint_position;
-
-  // TODO Something better than assert.
-  // All rows should have been filled, were they?
-  assert(current_row == path.joint_positions.rows());
-
-  // Convert to path object and return;
-  return path;
+  return;
 }
 
 // Default definition of a virtual planner
@@ -124,13 +122,17 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
     // of joint positions that reach end, and we don't want to overconstrain the planner.
     // TODO Pass tree by reference instead
     // TODO return !plan_ok if we failed to find a path.
-    Tree tree = RRT_star(initial_joints, end, resolution);
+    // TODO Define this parameter in a central location.
+    const size_t kMaxNodes = 1000;
+
+    Tree tree(DistanceMetric, kMaxNodes);
+    RRT_star(initial_joints, end, resolution, tree);
 
     // Print search report. TODO
-    // tree.Report();
+    tree.Report();
 
     // Process tree into path.
-    path = ToPath(tree, resolution);
+    ToPath(tree, resolution, path);
   }
   return path;
 }
@@ -139,7 +141,7 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
 // apart (each joint individually). Note: Adds X0, and Xi..., but not Xf, so guaranteed to
 // return a path length of at least 1.c
 Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
-    const Joint& X0, const Joint& Xf, const double resolution) const {
+    const Joint& X0, const Joint& Xf, const double resolution) {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points;
 
   const double linf_dist = (X0 - Xf).lpNorm<Eigen::Infinity>();
@@ -156,7 +158,7 @@ Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
 }
 
 bool PlannerImpl::HasCollision(const Joint& X0, const Joint& Xf,
-                               const double resolution) const {
+                               const double resolution) {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points =
       HighResolutionPath(X0, Xf, resolution);
 
@@ -188,7 +190,7 @@ bool PlannerImpl::AtPose(const Joint& position, const Pose& pose,
 }
 
 Joint PlannerImpl::TargetX(const double greediness, const Pose& goal,
-                              const Joint& greedy_initial_X) {
+                           const Joint& greedy_initial_X) {
   Joint target(kDims);
   if (uniform_distribution_(engine_) < greediness) {
     // In the greedy case, go directly to goal. Inverse kinematics specifies the goal
@@ -207,7 +209,7 @@ Joint PlannerImpl::TargetX(const double greediness, const Pose& goal,
   return target;
 }
 
-Joint PlannerImpl::Steer(const Joint& X_root, const Joint& X_goal) {
+Joint PlannerImpl::Steer(const Joint& X_root, const Joint& X_goal) const {
   // TODO update comment since linf is no longer explicit
   // Steer in the direction of X_goal without any single joint exceeding dx =
   // kMaxJointDisplacementBetweenNodes and without overshooting the goal.
@@ -226,32 +228,29 @@ Joint PlannerImpl::Steer(const Joint& X_root, const Joint& X_goal) {
 }
 
 // TODO could be defined at class construction instead of as a function?
-double PlannerImpl::CalculateNearRadius() {
+double PlannerImpl::CalculateNearRadius() const {
   // Since we're using l-inf norm for the distance metric, just search within... oh, I
   // dunno, 3x max distance between nodes?
   // TODO Define this parameter in a central location.
   return 3.0 * kMaxJointDisplacementBetweenNodes;
 }
 
-Tree PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution) {
-  // TODO Define this parameter in a central location.
-  const size_t kMaxIterations = 1000;
-
+void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
+                           Tree& tree) {
   const auto cost_to_go = [&goal](const Joint& X) {
     return DistanceToGoalMetric(X, goal);
   };
 
   const double root_node_cost = 0.0;
   Node root(X0, Tree::kNone, root_node_cost, cost_to_go(X0));
-  Tree tree(root, DistanceMetric, kMaxIterations);
+  tree.Add(root);
 
   // TODO Handle case where root is already at goal.
   // TODO Handle case where root is in collision.
   // TODO Handle case where goal is in collision.
 
-  // Iterate kMaxIterations -1 times since we already have 1 node in the tree.
-  // TODO Maybe fill up the whole tree? This wouldn't do it because of collisions.
-  for (size_t i = 0; i < kMaxIterations - 1; ++i) {
+  const size_t kMaxIterations = 10000;
+  for (size_t i = 0; i < kMaxIterations && !tree.IsFull(); ++i) {
     // Occasional greedy choice directly towards goal.
     const double greediness = 0.1;
     Joint X_target = TargetX(greediness, goal, tree.GetBestNodePosition());
@@ -308,6 +307,6 @@ Tree PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution) 
     }
   }
 
-  return tree;
+  return;
 }
 

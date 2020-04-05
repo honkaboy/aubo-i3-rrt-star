@@ -8,18 +8,15 @@
 #include "planner_api.h"
 #include "tree.h"
 #include "types.h"
-
-// double DegreesToRadians(const double degrees) { return degrees / 180.0 * M_PI; }
-// double RadiansToDegrees(const double radians) { return radians / M_PI * 180.0; }
+#include "utilities.h"
 
 class PlannerImpl : public Planner {
  public:
   PlannerImpl(const double resolution)
       // Looks like limits for all joints are [-175, +175] degrees
       // (aubo_i3_kinematics.cpp:632).
-      // TODO maybe define these in a prettier way.
-      : kSymmetricMaxJointAngle(175.0 / 180.0 * M_PI),
-        kMaxJointDisplacementBetweenNodes(5.0 / 180.0 * M_PI) {
+      : kSymmetricMaxJointAngle(Utilities::DegreesToRadians(175.0)),
+        kMaxJointDisplacementBetweenNodes(Utilities::DegreesToRadians(5.0)) {
     // Initialize RNG.
     uniform_distribution_ = std::uniform_real_distribution<double>(0, 1);
   }
@@ -32,14 +29,14 @@ class PlannerImpl : public Planner {
   /// \return Path object representing the planned path
   Path plan(const Pose& start, const Pose& end, double resolution, bool& plan_ok) final;
 
-  Joint InitialX(const Pose& start, bool& success);
+  static Joint InitialX(const Pose& start, bool& success);
 
-  Path ToPath(const Tree& tree, const double resolution) const;
+  static void ToPath(const Tree& tree, const double resolution, Path& path);
 
-  bool HasCollision(const Joint& X0, const Joint& Xf, const double resolution) const;
+  static bool HasCollision(const Joint& X0, const Joint& Xf, const double resolution);
 
-  Eigen::Matrix<double, Eigen::Dynamic, kDims> HighResolutionPath(
-      const Joint& X0, const Joint& Xf, const double resolution) const;
+  static Eigen::Matrix<double, Eigen::Dynamic, kDims> HighResolutionPath(
+      const Joint& X0, const Joint& Xf, const double resolution);
 
   static double DistanceMetric(const Joint& X0, const Joint& X1);
 
@@ -47,15 +44,15 @@ class PlannerImpl : public Planner {
 
   static double DistanceToGoalMetric(const Joint& X, const Pose& goal);
 
-  bool AtPose(const Joint& position, const Pose& pose, const double resolution);
+  static bool AtPose(const Joint& position, const Pose& pose, const double resolution);
 
   Joint TargetX(const double greediness, const Pose& goal, const Joint& greedy_initial_X);
 
-  Joint Steer(const Joint& X_root, const Joint& X_goal);
+  Joint Steer(const Joint& X_root, const Joint& X_goal) const;
 
-  double CalculateNearRadius();
+  double CalculateNearRadius() const;
 
-  Tree RRT_star(Joint X0, const Pose& goal, const double resolution);
+  void RRT_star(Joint X0, const Pose& goal, const double resolution, Tree& tree);
 
  private:
   const double kSymmetricMaxJointAngle;

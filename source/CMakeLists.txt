@@ -8,6 +8,7 @@ add_library(path_planner
 src/planner_impl.cpp
 src/tree.cpp
 src/node.cpp
+src/utilities.cpp
 src/aubo_i3_kinematics.cpp
 src/robot_api.cpp)
 

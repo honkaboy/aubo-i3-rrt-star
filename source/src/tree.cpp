@@ -6,15 +6,9 @@
 
 constexpr NodeID Tree::kNone;
 
-Tree::Tree(const Node& root,
-           std::function<double(const Joint&, const Joint&)> distance_metric,
+Tree::Tree(std::function<double(const Joint&, const Joint&)> distance_metric,
            const size_t max_nodes)
-    : distance_metric_(distance_metric), kMaxNodes(max_nodes) {
-  nodes_.push_back(root);
-  // Make root the current best node.
-  const NodeID root_id = nodes_.size() - 1;
-  best_node_and_cost_to_go_ = std::make_pair(root_id, root.cost_to_go);
-}
+    : distance_metric_(distance_metric), kMaxNodes(max_nodes) {}
 
 NodeID Tree::Add(const Node& new_node, bool is_goal) {
   NodeID id_added_node = kNone;
@@ -37,6 +31,8 @@ NodeID Tree::Add(const Node& new_node, bool is_goal) {
   }
   return id_added_node;
 }
+
+bool Tree::IsFull() const { return nodes_.size() >= kMaxNodes; }
 
 std::vector<NodeID> Tree::near_idxs(const Joint& position, double radius) {
   std::vector<NodeID> near_nodes;

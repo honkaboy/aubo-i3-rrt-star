@@ -9,13 +9,13 @@
 
 class Tree {
  public:
-  Tree(const Node& root,
-       std::function<double(const Joint&, const Joint&)> distance_metric,
+  Tree(std::function<double(const Joint&, const Joint&)> distance_metric,
        const size_t max_nodes);
 
   static constexpr NodeID kNone = -1;
 
   NodeID Add(const Node& new_node, bool is_goal = false);
+  bool IsFull() const;
   std::vector<NodeID> near_idxs(const Joint& position, double radius);
   NodeID nearest(const Joint& position);
   Node GetNode(const NodeID node_id) const;
