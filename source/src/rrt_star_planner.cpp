@@ -1,4 +1,4 @@
-#include "planner_impl.h"
+#include "rrt_star_planner.h"
 
 #include <Eigen/LU>
 #include <cmath>

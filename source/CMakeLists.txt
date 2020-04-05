@@ -5,7 +5,7 @@ project (pathplanner_service)
 
 #You may add sources to build here
 add_library(path_planner 
-src/planner_impl.cpp
+src/rrt_star_planner.cpp
 src/tree.cpp
 src/node.cpp
 src/utilities.cpp
