@@ -8,11 +8,7 @@
 #include "tree.h"
 
 // TODO cleanup:
-// - go though and make things references, const refs where possible.
-// - Dox for class
-// - Loops: iterators
-// - Make consts constexpr where possible.
-// - Integration test with a bunch of different poses.
+// - Loops: prefer iterators
 
 Joint RRTStarPlanner::InitialX(const Pose& start, bool& success) {
   /// Use the inverse kinematics starting from the joint origin to obtain the initial
@@ -120,12 +116,13 @@ Path RRTStarPlanner::plan(const Pose& start, const Pose& end, double resolution,
   } else {
     // NOTE: We don't just calculate a target joint position because there is likely a set
     // of joint positions that reach end, and we don't want to overconstrain the planner.
-    // TODO return !plan_ok if we failed to find a path.
     // TODO Define this parameter in a central location.
     const size_t kMaxNodes = 1000;
 
     Tree tree(DistanceMetric, kMaxNodes);
     BuildTree(initial_joints, end, resolution, tree);
+
+    plan_ok = tree.HasSolution();
 
     // Process tree into path.
     ToPath(tree, resolution, path);
@@ -275,7 +272,7 @@ void RRTStarPlanner::RewireTree(const std::vector<NodeID>& neighbor_idxs,
 }
 
 void RRTStarPlanner::BuildTree(Joint X0, const Pose& goal, const double resolution,
-                              Tree& tree) {
+                               Tree& tree) {
   const auto distance_to_goal = [&goal](const Joint& X) {
     return DistanceToGoalMetric(X, goal);
   };

@@ -36,6 +36,9 @@ class Tree {
   // Node setter.
   void SetNode(const NodeID node_id, const Node& node);
 
+  // Returns true if a solution path exists in the tree.
+  bool HasSolution() const { return !goal_node_idxs_.empty(); }
+
   // Return the solution, if any exists, with the lowest cost.
   std::vector<NodeID> Solution() const;
 
