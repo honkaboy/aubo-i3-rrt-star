@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
   std::default_random_engine generator(1);
   std::uniform_int_distribution<int> distribution(0, 100000);
 
-  const int iterations = 20;
+  const int iterations = 5;
   for (int i = 0; i < iterations; ++i) {
     const Pose pose1(min_radius, max_radius, distribution(generator));
     const Pose pose2(min_radius, max_radius, distribution(generator));
