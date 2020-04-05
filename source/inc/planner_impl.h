@@ -78,7 +78,7 @@ class RRTStarPlanner : public Planner {
   // Run the RRT star algorithm, starting from \p X0 and trying to get to \p goal,
   // guaranteeding path satisfiability with (joint space) \p resolution, and storing the
   // results in a tree.
-  void RRT_star(Joint X0, const Pose& goal, const double resolution, Tree& tree);
+  void BuildTree(Joint X0, const Pose& goal, const double resolution, Tree& tree);
 
   // Rewire the RRT tree, examining nodes \p neighbor_idxs to see if node \p n_new_idx is
   // now a better parent than their existing parent.

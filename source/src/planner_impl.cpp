@@ -125,7 +125,7 @@ Path RRTStarPlanner::plan(const Pose& start, const Pose& end, double resolution,
     const size_t kMaxNodes = 1000;
 
     Tree tree(DistanceMetric, kMaxNodes);
-    RRT_star(initial_joints, end, resolution, tree);
+    BuildTree(initial_joints, end, resolution, tree);
 
     // Process tree into path.
     ToPath(tree, resolution, path);
@@ -274,7 +274,7 @@ void RRTStarPlanner::RewireTree(const std::vector<NodeID>& neighbor_idxs,
   }
 }
 
-void RRTStarPlanner::RRT_star(Joint X0, const Pose& goal, const double resolution,
+void RRTStarPlanner::BuildTree(Joint X0, const Pose& goal, const double resolution,
                               Tree& tree) {
   const auto distance_to_goal = [&goal](const Joint& X) {
     return DistanceToGoalMetric(X, goal);
