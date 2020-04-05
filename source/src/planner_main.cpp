@@ -1,5 +1,5 @@
-#include <rrt_star_planner.h>
 #include <robot_api.h>
+#include <rrt_star_planner.h>
 #include <iostream>
 #include <random>
 
@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
   std::default_random_engine generator(1);
   std::uniform_int_distribution<int> distribution(0, 100000);
 
-  const int iterations = 1;
+  const int iterations = 20;
   for (int i = 0; i < iterations; ++i) {
     const Pose pose1(min_radius, max_radius, distribution(generator));
     const Pose pose2(min_radius, max_radius, distribution(generator));
