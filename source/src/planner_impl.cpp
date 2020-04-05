@@ -95,9 +95,10 @@ void PlannerImpl::ToPath(const Tree& tree, const double resolution, Path& path) 
     const Joint final_joint_position = tree.GetNode(solution.back()).position;
     path.joint_positions.row(current_row++) = final_joint_position;
 
-    // TODO Something better than assert.
     // All rows should have been filled, were they?
-    assert(current_row == path.joint_positions.rows());
+    if (current_row != path.joint_positions.rows()) {
+      throw std::logic_error("Failed to populate joint_positions.");
+    }
   }
 
   return;
@@ -120,7 +121,6 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   } else {
     // NOTE: We don't just calculate a target joint position because there is likely a set
     // of joint positions that reach end, and we don't want to overconstrain the planner.
-    // TODO Pass tree by reference instead
     // TODO return !plan_ok if we failed to find a path.
     // TODO Define this parameter in a central location.
     const size_t kMaxNodes = 1000;
@@ -129,7 +129,7 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
     RRT_star(initial_joints, end, resolution, tree);
 
     // Print search report. TODO
-    tree.Report();
+    // tree.Report();
 
     // Process tree into path.
     ToPath(tree, resolution, path);
@@ -137,20 +137,18 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   return path;
 }
 
-// TODO dox Creates a high-resolution path along X0 -> X1 at most \p resolution
-// apart (each joint individually). Note: Adds X0, and Xi..., but not Xf, so guaranteed to
-// return a path length of at least 1.c
 Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
     const Joint& X0, const Joint& Xf, const double resolution) {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points;
 
+  // Use L-inf norm so no joint moves more than resolution per path step.
   const double linf_dist = (X0 - Xf).lpNorm<Eigen::Infinity>();
-  // TODO remove sanity check? Not necessary to double-check the norm.
-  assert(linf_dist >= 0.0);
-  const int path_count = std::max(static_cast<int>(std::ceil(linf_dist / resolution)), 1);
-  const Joint dX = (Xf - X0) / path_count;
-  points.resize(path_count, kDims);
-  for (int i = 0; i < path_count; ++i) {
+
+  // Number of path steps that must be used to get between the points with \p resolution.
+  const int path_steps = std::max(static_cast<int>(std::ceil(linf_dist / resolution)), 1);
+  const Joint dX = (Xf - X0) / path_steps;
+  points.resize(path_steps, kDims);
+  for (int i = 0; i < path_steps; ++i) {
     const Joint Xi = X0 + i * dX;
     points.row(i) = Xi;
   }
@@ -207,20 +205,23 @@ Joint PlannerImpl::TargetX(const double greediness, const Pose& goal,
   return target;
 }
 
-Joint PlannerImpl::Steer(const Joint& X_root, const Joint& X_goal) const {
+Joint PlannerImpl::Steer(const Joint& X_start, const Joint& X_target) const {
   // TODO update comment since linf is no longer explicit
-  // Steer in the direction of X_goal without any single joint exceeding dx =
+  // Steer in the direction of X_target without any single joint exceeding dx =
   // kMaxJointDisplacementBetweenNodes and without overshooting the goal.
   Joint steered(kDims);
-  const double distance = DistanceMetric(X_root, X_goal);
+  const double distance = DistanceMetric(X_start, X_target);
   if (distance < kMaxJointDisplacementBetweenNodes) {
-    steered = X_goal;
+    steered = X_target;
   } else {
-    // Since DistanceMetric should be a norm, and kMaxJointDisplacementBetweenNodes must
-    // logically be positive, distance should always > 0 at this point.
-    assert(distance > 0.0);
+    if (distance <= 0.0) {
+      // Since DistanceMetric should be a norm, and kMaxJointDisplacementBetweenNodes must
+      // logically be positive, distance should always > 0 at this point.
+      throw std::logic_error(
+          "Distance between start and target nodes was unexpectedly nonpositive.");
+    }
     const double du = kMaxJointDisplacementBetweenNodes / distance;
-    steered = X_root + (X_goal - X_root) * du;
+    steered = X_start + (X_target - X_start) * du;
   }
   return steered;
 }

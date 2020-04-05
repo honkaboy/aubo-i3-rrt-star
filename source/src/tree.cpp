@@ -8,7 +8,11 @@ constexpr NodeID Tree::kNone;
 
 Tree::Tree(std::function<double(const Joint&, const Joint&)> distance_metric,
            const size_t max_nodes)
-    : distance_metric_(distance_metric), kMaxNodes(max_nodes) {}
+    : distance_metric_(distance_metric), kMaxNodes(max_nodes) {
+  // So that best-node updating work properly in Tree::Add().
+  best_node_and_cost_to_go_ =
+      std::make_pair(kNone, std::numeric_limits<double>::infinity());
+}
 
 NodeID Tree::Add(const Node& new_node, bool is_goal) {
   NodeID id_added_node = kNone;
@@ -34,7 +38,7 @@ NodeID Tree::Add(const Node& new_node, bool is_goal) {
 
 bool Tree::IsFull() const { return nodes_.size() >= kMaxNodes; }
 
-std::vector<NodeID> Tree::near_idxs(const Joint& position, double radius) {
+std::vector<NodeID> Tree::near_idxs(const Joint& position, double radius) const {
   std::vector<NodeID> near_nodes;
   for (size_t i = 0; i < nodes_.size(); ++i) {
     const double distance = distance_metric_(position, nodes_[i].position);
@@ -45,7 +49,7 @@ std::vector<NodeID> Tree::near_idxs(const Joint& position, double radius) {
   return near_nodes;
 }
 
-NodeID Tree::nearest(const Joint& position) {
+NodeID Tree::nearest(const Joint& position) const {
   NodeID nearest = kNone;
   double nearest_distance = std::numeric_limits<double>::infinity();
   for (size_t i = 0; i < nodes_.size(); ++i) {
@@ -65,7 +69,7 @@ Node Tree::GetNode(const NodeID node_id) const {
   return nodes_[node_id];
 }
 
-Joint Tree::GetBestNodePosition() {
+Joint Tree::GetBestNodePosition() const {
   return nodes_[best_node_and_cost_to_go_.first].position;
 }
 
@@ -96,7 +100,7 @@ std::vector<NodeID> Tree::Solution() const {
   return solution;
 }
 
-void Tree::Report() {
+void Tree::Report() const {
   if (!goal_node_idxs_.empty()) {
     // Find the goal node with the smallest cost (from origin).
     std::vector<NodeID> solution = Solution();

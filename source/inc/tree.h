@@ -16,22 +16,20 @@ class Tree {
 
   NodeID Add(const Node& new_node, bool is_goal = false);
   bool IsFull() const;
-  std::vector<NodeID> near_idxs(const Joint& position, double radius);
-  NodeID nearest(const Joint& position);
+  std::vector<NodeID> near_idxs(const Joint& position, double radius) const;
+  NodeID nearest(const Joint& position) const;
   Node GetNode(const NodeID node_id) const;
-  Joint GetBestNodePosition();
+  Joint GetBestNodePosition() const;
   std::vector<NodeID> Solution() const;
   void SetNode(const NodeID node_id, const Node& node);
-  double CalculateNearRadius();
-  void Report();
+  void Report() const;
 
  private:
   const std::function<double(const Joint&, const Joint&)> distance_metric_;
   const size_t kMaxNodes;
   std::vector<Node> nodes_;
   std::vector<NodeID> goal_node_idxs_;
-  std::pair<NodeID, double> best_node_and_cost_to_go_ =
-      std::make_pair(kNone, std::numeric_limits<double>::infinity());
+  std::pair<NodeID, double> best_node_and_cost_to_go_;
 };
 
 #endif

@@ -35,6 +35,9 @@ class PlannerImpl : public Planner {
 
   static bool HasCollision(const Joint& X0, const Joint& Xf, const double resolution);
 
+  // Creates a high-resolution path along X0 -> X1 at most \p resolution
+  // apart (each joint individually). Note: Adds X0, and Xi..., but not Xf, so guaranteed
+  // to return a path length of at least 1.
   static Eigen::Matrix<double, Eigen::Dynamic, kDims> HighResolutionPath(
       const Joint& X0, const Joint& Xf, const double resolution);
 
