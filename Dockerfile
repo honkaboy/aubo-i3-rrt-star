@@ -27,8 +27,7 @@ ADD .gdbinit /usr/src
 ADD ./source /usr/src/app
 RUN mkdir /usr/src/build
 WORKDIR /usr/src/build
-# RUN cmake ../app
-RUN cmake ../app -DCMAKE_BUILD_TYPE=Debug
+RUN cmake ../app
 RUN make -j8
 
 WORKDIR /usr/src/app
