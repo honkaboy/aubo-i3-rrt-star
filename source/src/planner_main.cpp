@@ -17,16 +17,20 @@ int main(int argc, char** argv) {
   // deterministic (e.g. might generate un-reachable poses otherwise).
   const unsigned seed1 = 2100272238;
   const unsigned seed2 = 2100390024;
-  const Pose pose1(min_radius, max_radius, seed1);
-  const Pose pose2(min_radius, max_radius, seed2);
 
-  bool ok;
-  Path result = planner->plan(pose1, pose2, resolution, ok);
-  if (ok) {
-    std::cout << "Path plan was successful" << std::endl;
-    std::cout << result.joint_positions << std::endl;
-  } else {
-    std::cout << "Path plan was unsuccessful" << std::endl;
+  const int iterations = 20;
+  for (int i = 0; i < iterations; ++i) {
+    const Pose pose1(min_radius, max_radius, seed1);
+    const Pose pose2(min_radius, max_radius, seed2);
+
+    bool ok;
+    Path result = planner->plan(pose1, pose2, resolution, ok);
+    if (ok) {
+      std::cout << "Path plan was successful" << std::endl;
+      std::cout << result.joint_positions << std::endl;
+    } else {
+      std::cout << "Path plan was unsuccessful" << std::endl;
+    }
   }
 
   return 1;

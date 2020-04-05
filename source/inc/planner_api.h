@@ -25,8 +25,8 @@ class Pose {
     // function isn't called too many times, so not worth optimizing right now for the
     // sake of time.
     // Note: Option to generate poses randomly here every time.
-    // const unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::mt19937 gen(seed);
+    const unsigned seed2 = std::chrono::system_clock::now().time_since_epoch().count();
+    std::mt19937 gen(seed2 + seed);
     std::uniform_real_distribution<double> dist(0, 1);
 
     // Generate random scale [0,1]

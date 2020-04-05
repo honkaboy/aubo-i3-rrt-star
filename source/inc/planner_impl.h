@@ -46,7 +46,8 @@ class PlannerImpl : public Planner {
 
   static bool AtPose(const Joint& position, const Pose& pose, const double resolution);
 
-  Joint TargetX(const double greediness, const Pose& goal, const Joint& greedy_initial_X);
+  Joint TargetX(const double greediness, const Pose& goal, const Joint& greedy_initial_X,
+                bool& success);
 
   Joint Steer(const Joint& X_root, const Joint& X_goal) const;
 

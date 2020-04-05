@@ -190,21 +190,19 @@ bool PlannerImpl::AtPose(const Joint& position, const Pose& pose,
 }
 
 Joint PlannerImpl::TargetX(const double greediness, const Pose& goal,
-                           const Joint& greedy_initial_X) {
+                           const Joint& greedy_initial_X, bool& success) {
   Joint target(kDims);
   if (uniform_distribution_(engine_) < greediness) {
     // In the greedy case, go directly to goal. Inverse kinematics specifies the goal
     // state from a given greedy_initial_X.
-    bool success = false;
     target =
         RobotAPI::inverse_kinematics(goal.AffineTransform(), greedy_initial_X, success);
-    // TODO something smarter than assert here.
-    assert(success);
   } else {
     // Otherwise, randomly select a target in the state space.
     // Note: This works because the min/max joint angles are symmetric [-max, max] and
     // Random() generates x \in [-1, 1].
     target = Joint::Random(kDims) * kSymmetricMaxJointAngle;
+    success = true;
   }
   return target;
 }
@@ -253,7 +251,13 @@ void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
   for (size_t i = 0; i < kMaxIterations && !tree.IsFull(); ++i) {
     // Occasional greedy choice directly towards goal.
     const double greediness = 0.1;
-    Joint X_target = TargetX(greediness, goal, tree.GetBestNodePosition());
+    bool success;
+    Joint X_target = TargetX(greediness, goal, tree.GetBestNodePosition(), success);
+    if (!success) {
+      // This may occasionally fail since since TargetX relies on inverse kinematics to
+      // get the goal joint positions. We just restart the loop and try again.
+      continue;
+    }
 
     // From the "randomly" generated target state, generate a new candidate state.
     // TODO don't build off of goal nodes?
