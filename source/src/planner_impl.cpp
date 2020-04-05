@@ -227,12 +227,12 @@ Joint PlannerImpl::Steer(const Joint& X_start, const Joint& X_target) const {
 
 void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
                            Tree& tree) {
-  const auto cost_to_go = [&goal](const Joint& X) {
+  const auto distance_to_goal = [&goal](const Joint& X) {
     return DistanceToGoalMetric(X, goal);
   };
 
   const double root_node_cost = 0.0;
-  Node root(X0, Tree::kNone, root_node_cost, cost_to_go(X0));
+  Node root(X0, Tree::kNone, root_node_cost, distance_to_goal(X0));
   tree.Add(root);
 
   // TODO Handle case where root is already at goal.
@@ -281,7 +281,7 @@ void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
 
       // Add X_new to tree through best "near" node.
       const Node n_new =
-          Node(X_new, best_parent_idx, cost_through_best_parent, cost_to_go(X_new));
+          Node(X_new, best_parent_idx, cost_through_best_parent, distance_to_goal(X_new));
       NodeID n_new_idx = tree.Add(n_new, AtPose(n_new.position, goal, resolution));
 
       if (n_new_idx == Tree::kNone) {

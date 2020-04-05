@@ -9,7 +9,7 @@ Tree::Tree(std::function<double(const Joint&, const Joint&)> distance_metric,
            const size_t max_nodes)
     : distance_metric_(distance_metric), kMaxNodes(max_nodes) {
   // So that best-node updating work properly in Tree::Add().
-  best_node_and_cost_to_go_ =
+  best_node_and_distance_to_goal_ =
       std::make_pair(kNone, std::numeric_limits<double>::infinity());
 }
 
@@ -29,8 +29,8 @@ NodeID Tree::Add(const Node& new_node, bool is_goal) {
     }
 
     // Update the best node if this one is better.
-    if (new_node.cost_to_go < best_node_and_cost_to_go_.second) {
-      best_node_and_cost_to_go_ = {id_added_node, new_node.cost_to_go};
+    if (new_node.distance_to_goal < best_node_and_distance_to_goal_.second) {
+      best_node_and_distance_to_goal_ = {id_added_node, new_node.distance_to_goal};
     }
   }
   return id_added_node;
@@ -70,7 +70,7 @@ Node Tree::GetNode(const NodeID node_id) const {
 }
 
 Joint Tree::GetBestNodePosition() const {
-  return nodes_[best_node_and_cost_to_go_.first].position;
+  return nodes_[best_node_and_distance_to_goal_.first].position;
 }
 
 void Tree::SetNode(const NodeID node_id, const Node& node) {
@@ -126,7 +126,7 @@ void Tree::Report() const {
     // Find the node that has the smallest cost to go to reach the goal.
     const auto best_node_it = std::min_element(
         nodes_.begin(), nodes_.end(),
-        [this](const Node& a, const Node& b) { return a.cost_to_go < b.cost_to_go; });
+        [this](const Node& a, const Node& b) { return a.distance_to_goal < b.distance_to_goal; });
     const NodeID best_node_idx = std::distance(nodes_.begin(), best_node_it);
     const Node best_node = *best_node_it;
     if (nodes_[best_node_idx] != best_node) {
@@ -135,7 +135,7 @@ void Tree::Report() const {
 
     std::cout << "Goal not reached. Closest node is ";
     std::cout << "{" << best_node_idx << " : cost - " << best_node.cost
-              << " : cost_to_go - " << best_node.cost_to_go << "}, " << std::endl;
+              << " : distance_to_goal - " << best_node.distance_to_goal << "}, " << std::endl;
   }
   return;
 }

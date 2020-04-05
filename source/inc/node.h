@@ -6,10 +6,10 @@
 
 struct Node {
   Node(const Joint& position, const NodeID parent, const double cost,
-       const double cost_to_go);
+       const double distance_to_goal);
   inline bool operator==(const Node& right) const {
     return (position == right.position) && (parent == right.parent) &&
-           (cost == right.cost) && (cost_to_go == right.cost_to_go);
+           (cost == right.cost) && (distance_to_goal == right.distance_to_goal);
   }
   inline bool operator!=(const Node& right) const { return !(*this == right); }
 
@@ -22,8 +22,8 @@ struct Node {
   // The cost to get to this node.
   double cost;
 
-  // A metric for the distance from the goal.
-  double cost_to_go;
+  // A measure of the distance to the goal.
+  double distance_to_goal;
 };
 
 #endif

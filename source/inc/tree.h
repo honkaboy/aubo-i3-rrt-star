@@ -29,7 +29,7 @@ class Tree {
   const size_t kMaxNodes;
   std::vector<Node> nodes_;
   std::vector<NodeID> goal_node_idxs_;
-  std::pair<NodeID, double> best_node_and_cost_to_go_;
+  std::pair<NodeID, double> best_node_and_distance_to_goal_;
 };
 
 #endif
