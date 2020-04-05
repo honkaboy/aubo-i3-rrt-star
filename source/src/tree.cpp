@@ -1,6 +1,5 @@
 #include "tree.h"
 
-#include <assert.h>
 #include <iostream>
 #include <limits>
 
@@ -20,8 +19,9 @@ NodeID Tree::Add(const Node& new_node, bool is_goal) {
     // Add the node to the tree.
     nodes_.push_back(new_node);
     id_added_node = nodes_.size() - 1;
-    // TODO remove this sanity check
-    assert(nodes_[id_added_node] == new_node);
+    if (nodes_[id_added_node] != new_node) {
+      throw std::logic_error("ID of added node and the new node don't match.");
+    }
 
     // Conditionally add to goal set.
     if (is_goal) {
@@ -64,7 +64,7 @@ NodeID Tree::nearest(const Joint& position) const {
 
 Node Tree::GetNode(const NodeID node_id) const {
   if (node_id >= nodes_.size()) {
-    assert(false);
+    throw std::runtime_error("Invalid node ID.");
   }
   return nodes_[node_id];
 }
@@ -74,7 +74,9 @@ Joint Tree::GetBestNodePosition() const {
 }
 
 void Tree::SetNode(const NodeID node_id, const Node& node) {
-  assert(node_id < nodes_.size());
+  if (node_id >= nodes_.size()) {
+    throw std::runtime_error("Invalid node ID.");
+  }
   nodes_[node_id] = node;
   return;
 }
@@ -127,8 +129,9 @@ void Tree::Report() const {
         [this](const Node& a, const Node& b) { return a.cost_to_go < b.cost_to_go; });
     const NodeID best_node_idx = std::distance(nodes_.begin(), best_node_it);
     const Node best_node = *best_node_it;
-    // TODO remove
-    assert(nodes_[best_node_idx] == best_node);
+    if (nodes_[best_node_idx] != best_node) {
+      throw std::logic_error("Unexpected: Node ID != index.");
+    }
 
     std::cout << "Goal not reached. Closest node is ";
     std::cout << "{" << best_node_idx << " : cost - " << best_node.cost

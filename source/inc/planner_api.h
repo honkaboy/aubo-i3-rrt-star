@@ -3,7 +3,6 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
-#include <cassert>
 #include <cmath>
 #include <random>
 
@@ -11,19 +10,16 @@
 class Pose {
  public:
   typedef Eigen::Transform<double, 3, Eigen::Affine> AffineTransform_t;
-  // Express the pose as an affine transform.
-  AffineTransform_t AffineTransform() const {
-    return Eigen::Translation3d(translation) * orientation_quaternion;
-  }
-  Pose() {}
-  Pose(const double min_radius, const double max_radius, const unsigned seed) {
-    // TODO better error handling than this.
-    assert(max_radius >= min_radius);
 
-    // TODO not the most efficient to recreate the engine every call, maybe? But this
-    // function isn't called too many times, so not worth optimizing right now for the
-    // sake of time.
-    // Note: Option to generate poses randomly here every time.
+  Pose(const double min_radius, const double max_radius, const unsigned seed) {
+    // TODO There's probably a better way to handle this, but this is good enough for now.
+    if (max_radius < min_radius) {
+      throw std::runtime_error("Max radius > min_radius.");
+    }
+
+    // TODO Probably not the most efficient to recreate the engine every call, maybe? But
+    // this function isn't called too many times, so not worth optimizing right now for
+    // the sake of time.
     std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dist(0, 1);
 
@@ -39,8 +35,16 @@ class Pose {
     translation = scale * Eigen::Vector3d::Random().normalized();
     orientation_quaternion = Eigen::AngleAxisd(angle, axis);
   }
+
+  // Express the pose as an affine transform.
+  AffineTransform_t AffineTransform() const {
+    return Eigen::Translation3d(translation) * orientation_quaternion;
+  }
+
+ private:
   // The orientation as a quaternion
   Eigen::Quaterniond orientation_quaternion;
+
   // Translation vector in meters [x, y, z]
   Eigen::Vector3d translation;
 };

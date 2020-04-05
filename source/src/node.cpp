@@ -1,5 +1,4 @@
 #include "node.h"
-#include <assert.h>
 
 Node::Node(const Joint& position, const NodeID parent, const double cost,
            const double cost_to_go)

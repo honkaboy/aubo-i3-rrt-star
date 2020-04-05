@@ -10,7 +10,6 @@
 // TODO cleanup:
 // - go though and make things references, const refs where possible.
 // - Dox for class
-// - Replace asserts.
 // - Loops: iterators
 // - Make consts constexpr where possible.
 // - Integration test with a bunch of different poses.
@@ -226,14 +225,6 @@ Joint PlannerImpl::Steer(const Joint& X_start, const Joint& X_target) const {
   return steered;
 }
 
-// TODO could be defined at class construction instead of as a function?
-double PlannerImpl::CalculateNearRadius() const {
-  // Since we're using l-inf norm for the distance metric, just search within... oh, I
-  // dunno, 3x max distance between nodes?
-  // TODO Define this parameter in a central location.
-  return 3.0 * kMaxJointDisplacementBetweenNodes;
-}
-
 void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
                            Tree& tree) {
   const auto cost_to_go = [&goal](const Joint& X) {
@@ -248,6 +239,7 @@ void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
   // TODO Handle case where root is in collision.
   // TODO Handle case where goal is in collision.
 
+  // TODO store in a central location.
   const size_t kMaxIterations = 10000;
   for (size_t i = 0; i < kMaxIterations && !tree.IsFull(); ++i) {
     // Occasional greedy choice directly towards goal.
@@ -261,15 +253,14 @@ void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
     }
 
     // From the "randomly" generated target state, generate a new candidate state.
-    // TODO don't build off of goal nodes?
+    // TODO Make more efficient: don't build off of goal nodes
     const NodeID nearest_node_idx = tree.nearest(X_target);
     const Joint X_nearest = tree.GetNode(nearest_node_idx).position;
     const Joint X_new = Steer(X_nearest, X_target);
 
     if (!HasCollision(X_nearest, X_new, resolution)) {
-      const double radius = CalculateNearRadius();
       // Note that tree does not yet contain X_new.
-      const std::vector<NodeID> neighbor_idxs = tree.near_idxs(X_new, radius);
+      const std::vector<NodeID> neighbor_idxs = tree.near_idxs(X_new, kNearbyNodeRadius);
       // Connect X_new to best "near" node. Cost to traverse is defined by nearest()'s
       // distance metric.
       NodeID best_parent_idx = nearest_node_idx;
@@ -292,11 +283,15 @@ void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
       const Node n_new =
           Node(X_new, best_parent_idx, cost_through_best_parent, cost_to_go(X_new));
       NodeID n_new_idx = tree.Add(n_new, AtPose(n_new.position, goal, resolution));
-      assert(n_new_idx != Tree::kNone);
 
-      // Connect all neighbors of X_new to X_new if that path cost is less.
+      if (n_new_idx == Tree::kNone) {
+        throw std::logic_error("Tree unexpectedly ran out of room to store nodes.");
+      }
+
+      // Connect all neighbors of n_new to n_new if that path cost is less.
       for (const NodeID neighbor_idx : neighbor_idxs) {
-        // TODO don't search over best_cost_idx (the best parent for n_new)
+        // TODO Make more efficient: don't search over best_cost_idx (the best parent for
+        // n_new)
         Node n_neighbor = tree.GetNode(neighbor_idx);
         const double neighbor_cost_through_new =
             n_new.cost + EdgeCostMetric(n_neighbor.position, n_new.position);
