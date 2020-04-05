@@ -14,7 +14,7 @@
 // - Make consts constexpr where possible.
 // - Integration test with a bunch of different poses.
 
-Joint PlannerImpl::InitialX(const Pose& start, bool& success) {
+Joint RRTStarPlanner::InitialX(const Pose& start, bool& success) {
   /// Use the inverse kinematics starting from the joint origin to obtain the initial
   /// joint position.
   Joint origin(kDims);
@@ -24,18 +24,18 @@ Joint PlannerImpl::InitialX(const Pose& start, bool& success) {
   return initial_joints;
 }
 
-double PlannerImpl::DistanceMetric(const Joint& X0, const Joint& X1) {
+double RRTStarPlanner::DistanceMetric(const Joint& X0, const Joint& X1) {
   // Use the inf-norm for search distance to reflect that each joint is independent.
   return (X0 - X1).lpNorm<Eigen::Infinity>();
 }
 
-double PlannerImpl::EdgeCostMetric(const Joint& X0, const Joint& X1) {
+double RRTStarPlanner::EdgeCostMetric(const Joint& X0, const Joint& X1) {
   // Use the 2-norm for edge costs between nodes to reflect that we want to minimize total
   // joint movement.
   return (X0 - X1).lpNorm<2>();
 }
 
-double PlannerImpl::DistanceToGoalMetric(const Joint& X, const Pose& goal) {
+double RRTStarPlanner::DistanceToGoalMetric(const Joint& X, const Pose& goal) {
   // Got this metric from https://www.cs.cmu.edu/~cga/dynopt/readings/Rmetric.pdf eqn. 4,
   // which in turn got it from https://doi.org/10.1115/1.2826116
   // metric = sqrt(a * norm(log(R2 / R1))**2 + b * norm(t2 - t1)**2)
@@ -61,7 +61,7 @@ double PlannerImpl::DistanceToGoalMetric(const Joint& X, const Pose& goal) {
   return metric;
 }
 
-void PlannerImpl::ToPath(const Tree& tree, const double resolution, Path& path) {
+void RRTStarPlanner::ToPath(const Tree& tree, const double resolution, Path& path) {
   const std::vector<NodeID> solution = tree.Solution();
 
   if (solution.size() >= 1) {
@@ -104,7 +104,7 @@ void PlannerImpl::ToPath(const Tree& tree, const double resolution, Path& path) 
 }
 
 // Default definition of a virtual planner
-Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
+Path RRTStarPlanner::plan(const Pose& start, const Pose& end, double resolution,
                        bool& plan_ok) {
   Path path;
 
@@ -136,7 +136,9 @@ Path PlannerImpl::plan(const Pose& start, const Pose& end, double resolution,
   return path;
 }
 
-Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
+// TODO Maybe make this function take a non-const reference to write to instead of
+// returning the full matrix by value.
+Eigen::Matrix<double, Eigen::Dynamic, kDims> RRTStarPlanner::HighResolutionPath(
     const Joint& X0, const Joint& Xf, const double resolution) {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points;
 
@@ -154,7 +156,7 @@ Eigen::Matrix<double, Eigen::Dynamic, kDims> PlannerImpl::HighResolutionPath(
   return points;
 }
 
-bool PlannerImpl::HasCollision(const Joint& X0, const Joint& Xf,
+bool RRTStarPlanner::HasCollision(const Joint& X0, const Joint& Xf,
                                const double resolution) {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points =
       HighResolutionPath(X0, Xf, resolution);
@@ -173,7 +175,7 @@ bool PlannerImpl::HasCollision(const Joint& X0, const Joint& Xf,
   return RobotAPI::in_collision(Xf);
 }
 
-bool PlannerImpl::AtPose(const Joint& position, const Pose& pose,
+bool RRTStarPlanner::AtPose(const Joint& position, const Pose& pose,
                          const double resolution) {
   bool success = false;
   const Joint goal_X =
@@ -186,7 +188,7 @@ bool PlannerImpl::AtPose(const Joint& position, const Pose& pose,
   return success;
 }
 
-Joint PlannerImpl::TargetX(const double greediness, const Pose& goal,
+Joint RRTStarPlanner::TargetX(const double greediness, const Pose& goal,
                            const Joint& greedy_initial_X, bool& success) {
   Joint target(kDims);
   if (uniform_distribution_(engine_) < greediness) {
@@ -204,7 +206,7 @@ Joint PlannerImpl::TargetX(const double greediness, const Pose& goal,
   return target;
 }
 
-Joint PlannerImpl::Steer(const Joint& X_start, const Joint& X_target) const {
+Joint RRTStarPlanner::Steer(const Joint& X_start, const Joint& X_target) const {
   // TODO update comment since linf is no longer explicit
   // Steer in the direction of X_target without any single joint exceeding dx =
   // kMaxJointDisplacementBetweenNodes and without overshooting the goal.
@@ -225,7 +227,7 @@ Joint PlannerImpl::Steer(const Joint& X_start, const Joint& X_target) const {
   return steered;
 }
 
-void PlannerImpl::RRT_star(Joint X0, const Pose& goal, const double resolution,
+void RRTStarPlanner::RRT_star(Joint X0, const Pose& goal, const double resolution,
                            Tree& tree) {
   const auto distance_to_goal = [&goal](const Joint& X) {
     return DistanceToGoalMetric(X, goal);

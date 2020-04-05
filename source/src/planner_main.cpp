@@ -8,7 +8,7 @@ int main(int argc, char** argv) {
   const double resolution = 0.01;
   Planner* planner;
   // Replace with a new version of your planner here
-  planner = new PlannerImpl(resolution);
+  planner = new RRTStarPlanner(resolution);
 
   const double min_radius = 0.3;  // m? Don't know how aubo i3 units are defined
   const double max_radius = 0.5;

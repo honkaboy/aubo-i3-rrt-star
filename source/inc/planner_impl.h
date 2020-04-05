@@ -10,9 +10,9 @@
 #include "types.h"
 #include "utilities.h"
 
-class PlannerImpl : public Planner {
+class RRTStarPlanner : public Planner {
  public:
-  PlannerImpl(const double resolution)
+  RRTStarPlanner(const double resolution)
       // Note: Looks like limits for all joints are [-175, +175] degrees
       // (aubo_i3_kinematics.cpp:632).
       : kSymmetricMaxJointAngle(Utilities::DegreesToRadians(175.0)),
