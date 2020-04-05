@@ -80,6 +80,18 @@ class RRTStarPlanner : public Planner {
   // results in a tree.
   void RRT_star(Joint X0, const Pose& goal, const double resolution, Tree& tree);
 
+  // Rewire the RRT tree, examining nodes \p neighbor_idxs to see if node \p n_new_idx is
+  // now a better parent than their existing parent.
+  static void RewireTree(const std::vector<NodeID>& neighbor_idxs, const NodeID n_new_idx,
+                         const NodeID best_parent_idx, const double resolution,
+                         Tree& tree);
+
+  // Find the best parent among \p neighbor_idxs for a node at \p X_new in \p tree.
+  static std::pair<NodeID, double> BestParent(const NodeID nearest_node_idx,
+                                              const Joint& X_new,
+                                              const std::vector<NodeID>& neighbor_idxs,
+                                              const double resolution, const Tree& tree);
+
  private:
   // The maximum displacement for each joint angle.
   const double kSymmetricMaxJointAngle;

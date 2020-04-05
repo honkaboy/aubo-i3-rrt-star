@@ -105,7 +105,7 @@ void RRTStarPlanner::ToPath(const Tree& tree, const double resolution, Path& pat
 
 // Default definition of a virtual planner
 Path RRTStarPlanner::plan(const Pose& start, const Pose& end, double resolution,
-                       bool& plan_ok) {
+                          bool& plan_ok) {
   Path path;
 
   /// NOTE: This function's API is a little strange, because we should expect to already
@@ -126,9 +126,6 @@ Path RRTStarPlanner::plan(const Pose& start, const Pose& end, double resolution,
 
     Tree tree(DistanceMetric, kMaxNodes);
     RRT_star(initial_joints, end, resolution, tree);
-
-    // Print search report. TODO
-    // tree.Report();
 
     // Process tree into path.
     ToPath(tree, resolution, path);
@@ -157,7 +154,7 @@ Eigen::Matrix<double, Eigen::Dynamic, kDims> RRTStarPlanner::HighResolutionPath(
 }
 
 bool RRTStarPlanner::HasCollision(const Joint& X0, const Joint& Xf,
-                               const double resolution) {
+                                  const double resolution) {
   Eigen::Matrix<double, Eigen::Dynamic, kDims> points =
       HighResolutionPath(X0, Xf, resolution);
 
@@ -176,7 +173,7 @@ bool RRTStarPlanner::HasCollision(const Joint& X0, const Joint& Xf,
 }
 
 bool RRTStarPlanner::AtPose(const Joint& position, const Pose& pose,
-                         const double resolution) {
+                            const double resolution) {
   bool success = false;
   const Joint goal_X =
       RobotAPI::inverse_kinematics(pose.AffineTransform(), position, success);
@@ -189,7 +186,7 @@ bool RRTStarPlanner::AtPose(const Joint& position, const Pose& pose,
 }
 
 Joint RRTStarPlanner::TargetX(const double greediness, const Pose& goal,
-                           const Joint& greedy_initial_X, bool& success) {
+                              const Joint& greedy_initial_X, bool& success) {
   Joint target(kDims);
   if (uniform_distribution_(engine_) < greediness) {
     // In the greedy case, go directly to goal. Inverse kinematics specifies the goal
@@ -227,8 +224,58 @@ Joint RRTStarPlanner::Steer(const Joint& X_start, const Joint& X_target) const {
   return steered;
 }
 
+std::pair<NodeID, double> RRTStarPlanner::BestParent(
+    const NodeID nearest_node_idx, const Joint& X_new,
+    const std::vector<NodeID>& neighbor_idxs, const double resolution, const Tree& tree) {
+  // Connect X_new to best "near" node. Cost to traverse is defined by nearest()'s
+  // distance metric.
+  NodeID best_parent_idx = nearest_node_idx;
+  const Node n_nearest = tree.GetNode(nearest_node_idx);
+  // Minimum cost to get to X_new through neighbors.
+  double cost_through_best_parent =
+      n_nearest.cost + EdgeCostMetric(n_nearest.position, X_new);
+  for (const NodeID neighbor_idx : neighbor_idxs) {
+    const Node n_neighbor = tree.GetNode(neighbor_idx);
+    const double new_cost_through_neighbor =
+        n_neighbor.cost + EdgeCostMetric(n_neighbor.position, X_new);
+    if (new_cost_through_neighbor < cost_through_best_parent &&
+        !HasCollision(n_neighbor.position, X_new, resolution)) {
+      best_parent_idx = neighbor_idx;
+      cost_through_best_parent = new_cost_through_neighbor;
+    }
+  }
+  return std::make_pair(best_parent_idx, cost_through_best_parent);
+}
+
+void RRTStarPlanner::RewireTree(const std::vector<NodeID>& neighbor_idxs,
+                                const NodeID n_new_idx, const NodeID best_parent_idx,
+                                const double resolution, Tree& tree) {
+  const Node& n_new = tree.GetNode(n_new_idx);
+
+  for (const NodeID neighbor_idx : neighbor_idxs) {
+    if (neighbor_idx == best_parent_idx) {
+      // Don't examine the best parent for n_new - it necessarily cannot have a better
+      // path through x_new.
+      continue;
+    }
+
+    // Connect neighbor of n_new to n_new if that path cost is less.
+    Node n_neighbor = tree.GetNode(neighbor_idx);
+    const double neighbor_cost_through_new =
+        n_new.cost + EdgeCostMetric(n_neighbor.position, n_new.position);
+    if (neighbor_cost_through_new < n_neighbor.cost and
+        !HasCollision(n_new.position, n_neighbor.position, resolution)) {
+      // Best path for neighbor is now through X_new
+      n_neighbor.parent = n_new_idx;
+      n_neighbor.cost = neighbor_cost_through_new;
+      // Update the neighbor node in the tree.
+      tree.SetNode(neighbor_idx, n_neighbor);
+    }
+  }
+}
+
 void RRTStarPlanner::RRT_star(Joint X0, const Pose& goal, const double resolution,
-                           Tree& tree) {
+                              Tree& tree) {
   const auto distance_to_goal = [&goal](const Joint& X) {
     return DistanceToGoalMetric(X, goal);
   };
@@ -263,49 +310,24 @@ void RRTStarPlanner::RRT_star(Joint X0, const Pose& goal, const double resolutio
     if (!HasCollision(X_nearest, X_new, resolution)) {
       // Note that tree does not yet contain X_new.
       const std::vector<NodeID> neighbor_idxs = tree.near_idxs(X_new, kNearbyNodeRadius);
-      // Connect X_new to best "near" node. Cost to traverse is defined by nearest()'s
-      // distance metric.
-      NodeID best_parent_idx = nearest_node_idx;
-      const Node n_nearest = tree.GetNode(nearest_node_idx);
-      // Minimum cost to get to X_new through neighbors.
-      double cost_through_best_parent =
-          n_nearest.cost + EdgeCostMetric(n_nearest.position, X_new);
-      for (const NodeID neighbor_idx : neighbor_idxs) {
-        const Node n_neighbor = tree.GetNode(neighbor_idx);
-        const double new_cost_through_neighbor =
-            n_neighbor.cost + EdgeCostMetric(n_neighbor.position, X_new);
-        if (new_cost_through_neighbor < cost_through_best_parent &&
-            !HasCollision(n_neighbor.position, X_new, resolution)) {
-          best_parent_idx = neighbor_idx;
-          cost_through_best_parent = new_cost_through_neighbor;
-        }
-      }
 
-      // Add X_new to tree through best "near" node.
+      // Find the best "near" node to attach the new node to.
+      NodeID best_parent_idx = Tree::kNone;
+      double cost_through_best_parent = std::numeric_limits<double>::infinity();
+      std::tie(best_parent_idx, cost_through_best_parent) =
+          BestParent(nearest_node_idx, X_new, neighbor_idxs, resolution, tree);
+
+      // Add node representing X_new to tree.
       const Node n_new =
           Node(X_new, best_parent_idx, cost_through_best_parent, distance_to_goal(X_new));
       NodeID n_new_idx = tree.Add(n_new, AtPose(n_new.position, goal, resolution));
-
       if (n_new_idx == Tree::kNone) {
-        throw std::logic_error("Tree unexpectedly ran out of room to store nodes.");
+        throw std::logic_error("Failed to add new node to tree.");
       }
 
-      // Connect all neighbors of n_new to n_new if that path cost is less.
-      for (const NodeID neighbor_idx : neighbor_idxs) {
-        // TODO Make more efficient: don't search over best_cost_idx (the best parent for
-        // n_new)
-        Node n_neighbor = tree.GetNode(neighbor_idx);
-        const double neighbor_cost_through_new =
-            n_new.cost + EdgeCostMetric(n_neighbor.position, n_new.position);
-        if (neighbor_cost_through_new < n_neighbor.cost and
-            !HasCollision(n_new.position, n_neighbor.position, resolution)) {
-          // Best path for neighbor is now through X_new
-          n_neighbor.parent = n_new_idx;
-          n_neighbor.cost = neighbor_cost_through_new;
-          // Update the neighbor node in the tree.
-          tree.SetNode(neighbor_idx, n_neighbor);
-        }
-      }
+      // Rewire the tree, connecting nearby neighbors to n_new if that's now the better
+      // node.
+      RewireTree(neighbor_idxs, n_new_idx, best_parent_idx, resolution, tree);
     }
   }
 
