@@ -1,6 +1,7 @@
 #include <planner_impl.h>
 #include <robot_api.h>
 #include <iostream>
+#include <random>
 
 int main(int argc, char** argv) {
   // Assuming this is min radian displacement between planned path joint angles.
@@ -15,13 +16,13 @@ int main(int argc, char** argv) {
   // Generate "random" to / from poses.
   // NOTE: Using constant seeds here to make the demo of the planning algorithm
   // deterministic (e.g. might generate un-reachable poses otherwise).
-  const unsigned seed1 = 2100272238;
-  const unsigned seed2 = 2100390024;
+  std::default_random_engine generator(1);
+  std::uniform_int_distribution<int> distribution(0, 100000);
 
-  const int iterations = 20;
+  const int iterations = 1;
   for (int i = 0; i < iterations; ++i) {
-    const Pose pose1(min_radius, max_radius, seed1);
-    const Pose pose2(min_radius, max_radius, seed2);
+    const Pose pose1(min_radius, max_radius, distribution(generator));
+    const Pose pose2(min_radius, max_radius, distribution(generator));
 
     bool ok;
     Path result = planner->plan(pose1, pose2, resolution, ok);

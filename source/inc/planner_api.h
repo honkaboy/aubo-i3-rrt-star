@@ -4,7 +4,6 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <cassert>
-#include <chrono>
 #include <cmath>
 #include <random>
 
@@ -25,8 +24,7 @@ class Pose {
     // function isn't called too many times, so not worth optimizing right now for the
     // sake of time.
     // Note: Option to generate poses randomly here every time.
-    const unsigned seed2 = std::chrono::system_clock::now().time_since_epoch().count();
-    std::mt19937 gen(seed2 + seed);
+    std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dist(0, 1);
 
     // Generate random scale [0,1]
