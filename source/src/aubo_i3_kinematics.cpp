@@ -1,3 +1,4 @@
+/* This entire file is 3RD party code, not mine. */
 
 #include<aubo_i3_kinematics.h>
 #include <stdarg.h>
@@ -5,11 +6,6 @@
 #include <Eigen/Dense>
 #include <iostream>
 #define ARM_DOF 6
-
-
-
-/*3RD party code*/
-
 
 const double ZERO_THRESH = 1e-4;
 const double PI = M_PI;
