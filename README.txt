@@ -1,4 +1,4 @@
-Using RRT*, plan a path for an Aubo i3 6-axis industrial robot from a starting pose to and ending pose.
+Using RRT*, plan a path for an Aubo i3 6-axis industrial robot (https://www.robots.ch/downloads/Aubo-i3-Brochure.pdf) from a starting pose to and ending pose.
 
 Execution:
   From project root:
