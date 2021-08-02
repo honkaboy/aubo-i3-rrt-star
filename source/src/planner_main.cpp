@@ -2,16 +2,15 @@
 #include <rrt_star_planner.h>
 #include <iostream>
 #include <random>
+#include <memory>
 
 int main(int argc, char** argv) {
   // Assuming this is min radian displacement between planned path joint angles.
   const double resolution = 0.01;
-  Planner* planner;
-  // Replace with a new version of your planner here
-  planner = new RRTStarPlanner(resolution);
+  const std::unique_prt<Planner> planner(new RRTStarPlanner(resolution));
 
-  const double min_radius = 0.3;  // m? Don't know how aubo i3 units are defined
-  const double max_radius = 0.5;
+  const double min_radius = 0.3;  // m
+  const double max_radius = 0.5;  // m
 
   // Generate "random" to / from poses.
   // NOTE: Using constant seeds here to make the demo of the planning algorithm
@@ -34,7 +33,6 @@ int main(int argc, char** argv) {
     }
   }
 
-  delete planner;
   return 1;
 }
 
